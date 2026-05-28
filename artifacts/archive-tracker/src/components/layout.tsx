@@ -37,14 +37,14 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const allNavItems = [
-    { name: "Dashboard",      href: "/dashboard",   icon: LayoutDashboard, minLevel: "admin" },
+    { name: "Dashboard",      href: "/dashboard",   icon: LayoutDashboard, minLevel: "user" },
     { name: "Archive Boxes",  href: "/boxes",        icon: PackageSearch,   minLevel: "user" },
     { name: "Team Members",   href: "/team",         icon: Users,           minLevel: "admin" },
     { name: "Role Management",href: "/roles",        icon: Shield,          minLevel: "admin" },
     { name: "Acquisitions",   href: "/acquisitions",  icon: ShoppingCart,    minLevel: "admin" },
-    { name: "Activity Log",   href: "/activity-log", icon: ClipboardList,   minLevel: "admin" },
+    { name: "Activity Log",   href: "/activity-log", icon: ClipboardList,   minLevel: "user" },
     { name: "Accounts",       href: "/admin-accounts",icon: UserCog,        minLevel: "superadmin" },
-    { name: "Settings",       href: "/settings",     icon: Settings,        minLevel: "admin" },
+    { name: "Settings",       href: "/settings",     icon: Settings,        minLevel: "user" },
   ];
 
   const level = user?.accountLevel ?? "user";

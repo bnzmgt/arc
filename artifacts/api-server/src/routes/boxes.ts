@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
-import { db, boxesTable, workflowStepsTable, usersTable, rolesTable, activityLogTable, userRolesTable } from "@workspace/db";
+import { db, boxesTable, workflowStepsTable, usersTable, rolesTable, activityLogTable, userRolesTable, adminAccountsTable } from "@workspace/db";
 import { requireAdmin } from "../lib/authMiddleware";
 import {
   CreateBoxBody,
@@ -99,6 +99,7 @@ router.post("/boxes", requireAdmin, async (req, res): Promise<void> => {
     action: "Box created and received",
     stepName: null,
     performedByUserId: null,
+    performedByAdminId: req.session?.adminId ?? null,
   });
 
   res.status(201).json(box);
@@ -138,6 +139,9 @@ router.put("/boxes/:id", requireAdmin, async (req, res): Promise<void> => {
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.outDate !== undefined) {
     updateData.outDate = parsed.data.outDate ? new Date(parsed.data.outDate) : null;
+  }
+  if (parsed.data.inDate !== undefined) {
+    updateData.inDate = parsed.data.inDate ? new Date(parsed.data.inDate) : null;
   }
 
   const [box] = await db.update(boxesTable)
@@ -326,6 +330,7 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
     action: `Workflow step "${stepName}" updated to "${status}"`,
     stepName,
     performedByUserId: assignedUserId ?? null,
+    performedByAdminId: req.session?.adminId ?? null,
   });
 
   res.json({

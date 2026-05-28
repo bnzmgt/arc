@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, adminAccountsTable } from "@workspace/db";
+import { db, adminAccountsTable, usersTable, userRolesTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -53,6 +53,45 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     username: account.username,
     displayName: account.displayName,
     accountLevel: account.accountLevel ?? "user",
+  });
+});
+
+router.get("/auth/me/identity", async (req, res): Promise<void> => {
+  if (!req.session?.adminId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const [account] = await db
+    .select({ id: adminAccountsTable.id, userId: adminAccountsTable.userId, displayName: adminAccountsTable.displayName })
+    .from(adminAccountsTable)
+    .where(eq(adminAccountsTable.id, req.session.adminId))
+    .limit(1);
+
+  if (!account?.userId) {
+    res.json({ userId: null, name: account?.displayName ?? null, workflowStep: null, roleName: null });
+    return;
+  }
+
+  const [user] = await db
+    .select({ id: usersTable.id, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, account.userId))
+    .limit(1);
+
+  const roles = await db
+    .select({ id: rolesTable.id, name: rolesTable.name, workflowStep: rolesTable.workflowStep })
+    .from(userRolesTable)
+    .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+    .where(eq(userRolesTable.userId, account.userId));
+
+  const workflowSteps = roles.map(r => r.workflowStep).filter(Boolean) as string[];
+  res.json({
+    userId: account.userId,
+    name: user?.name ?? account.displayName,
+    workflowStep: roles[0]?.workflowStep ?? null,
+    workflowSteps,
+    roleName: roles.map(r => r.name).filter(Boolean).join(", ") || null,
   });
 });
 

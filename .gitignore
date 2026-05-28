@@ -49,3 +49,5 @@ Thumbs.db
 .local/
 
 .env
+*_backup_*/
+backup_configs/

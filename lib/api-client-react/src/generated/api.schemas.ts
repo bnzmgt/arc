@@ -185,6 +185,7 @@ export interface UpdateBoxBody {
   deadline?: string | null;
   cost?: number | null;
   photoLink?: string | null;
+  inDate?: string | null;
 }
 
 export type WorkflowStepStepName =

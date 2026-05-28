@@ -88,8 +88,7 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
 }
 
 function SmartRedirect() {
-  const { isAdmin } = useAuth();
-  return <Redirect to={isAdmin ? "/dashboard" : "/boxes"} />;
+  return <Redirect to="/dashboard" />;
 }
 
 function Router() {
@@ -110,7 +109,7 @@ function Router() {
         <RequireAuth><SmartRedirect /></RequireAuth>
       )} />
       <Route path="/dashboard" component={() => (
-        <RequireAuth><RequireAdmin><Layout><DashboardPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><Layout><DashboardPage /></Layout></RequireAuth>
       )} />
       <Route path="/boxes/new" component={() => (
         <RequireAuth><RequireAdmin><Layout><BoxNewPage /></Layout></RequireAdmin></RequireAuth>
@@ -128,16 +127,16 @@ function Router() {
         <RequireAuth><RequireAdmin><Layout><TeamPage /></Layout></RequireAdmin></RequireAuth>
       )} />
       <Route path="/settings" component={() => (
-        <RequireAuth><RequireAdmin><Layout><SettingsPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><Layout><SettingsPage /></Layout></RequireAuth>
       )} />
       <Route path="/scanner-simulator" component={() => (
-        <RequireAuth><RequireAdmin><Layout><ScannerSimulatorPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><Layout><ScannerSimulatorPage /></Layout></RequireAuth>
       )} />
       <Route path="/acquisitions" component={() => (
         <RequireAuth><RequireAdmin><Layout><AcquisitionsPage /></Layout></RequireAdmin></RequireAuth>
       )} />
       <Route path="/activity-log" component={() => (
-        <RequireAuth><RequireAdmin><Layout><ActivityLogPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><Layout><ActivityLogPage /></Layout></RequireAuth>
       )} />
       <Route path="/admin-accounts" component={() => (
         <RequireAuth><RequireSuperAdmin><Layout><AdminAccountsPage /></Layout></RequireSuperAdmin></RequireAuth>

@@ -6,7 +6,7 @@ import {
   getGetBoxQueryKey, getGetBoxWorkflowQueryKey, getGetBoxTicketQueryKey, getListBoxesQueryKey,
   useListUsers,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,7 +24,7 @@ import { BoxStatusBadge, WorkflowStatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Ticket, CheckCircle2, Clock, Circle, ChevronRight,
-  Calendar, MapPin, Package, User, FileText, QrCode, AlertTriangle, Pencil, ExternalLink,
+  Calendar, MapPin, Package, User, FileText, QrCode, AlertTriangle, Pencil, ExternalLink, Lock,
 } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { STEP_LABELS } from "@/lib/steps";
@@ -49,12 +49,18 @@ function WorkflowStepCard({
   boxId,
   users,
   onUpdated,
+  staffIdentity,
 }: {
   step: { id: number; stepName: string; stepOrder: number; status: string; assignedUserId?: number | null; assignedUserName?: string | null; startedAt?: string | null; completedAt?: string | null; notes?: string | null; updatedAt: string };
   boxId: number;
   users: Array<{ id: number; name: string }>;
   onUpdated: () => void;
+  staffIdentity?: { userId: number; workflowStep: string | null; workflowSteps?: string[] } | null;
 }) {
+  const isStaffView = !!staffIdentity;
+  const assignedSteps = staffIdentity?.workflowSteps ?? (staffIdentity?.workflowStep ? [staffIdentity.workflowStep] : []);
+  const canActOnThisStep = !isStaffView || assignedSteps.includes(step.stepName);
+
   const [open, setOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState(step.status);
   const [selectedUser, setSelectedUser] = useState(step.assignedUserId?.toString() ?? "none");
@@ -69,10 +75,10 @@ function WorkflowStepCard({
         setOpen(false);
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const msg = (err as { data?: { error?: string } })?.data?.error;
         toast({
-          title: msg ?? "Update failed",
-          description: msg?.includes("Previous") ? "Complete the previous step first." : undefined,
+          title: "Update failed",
+          description: msg ?? "Something went wrong. Please try again.",
           variant: "destructive",
         });
       },
@@ -85,6 +91,10 @@ function WorkflowStepCard({
     completed: <CheckCircle2 size={18} className="text-emerald-500" />,
     skipped: <ChevronRight size={18} className="text-muted-foreground" />,
   }[step.status] ?? <Circle size={18} />;
+
+  const resolvedAssignedUserId = isStaffView
+    ? staffIdentity.userId
+    : (selectedUser !== "none" ? parseInt(selectedUser, 10) : null);
 
   return (
     <div className={`flex gap-4 p-4 rounded-lg border ${step.status === "completed" ? "border-emerald-200 bg-emerald-50/30 dark:border-emerald-900 dark:bg-emerald-950/20" : step.status === "in_progress" ? "border-amber-200 bg-amber-50/30 dark:border-amber-900 dark:bg-amber-950/20" : "border-border bg-muted/20"}`}>
@@ -107,75 +117,90 @@ function WorkflowStepCard({
         )}
         {step.notes && <p className="text-sm text-muted-foreground mt-1 italic">{step.notes}</p>}
       </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="flex-shrink-0" data-testid={`button-update-step-${step.stepName}`}>
-            Update
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update: {STEP_LABELS[step.stepName]}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <Label>Status</Label>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="skipped">Skipped</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Assign To</Label>
-              <Select value={selectedUser} onValueChange={setSelectedUser}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select team member" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Unassigned</SelectItem>
-                  {users.map(u => (
-                    <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Add notes..."
-                rows={3}
-                className="mt-1"
-              />
-            </div>
-            <Button
-              className="w-full"
-              disabled={updateMutation.isPending}
-              onClick={() =>
-                updateMutation.mutate({
-                  id: boxId,
-                  data: {
-                    stepName: step.stepName as typeof STEPS[number],
-                    status: selectedStatus as "pending" | "in_progress" | "completed" | "skipped",
-                    assignedUserId: selectedUser !== "none" ? parseInt(selectedUser, 10) : null,
-                    notes: notes || null,
-                  },
-                })
-              }
-            >
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+
+      {/* Staff: show lock badge on steps that aren't theirs */}
+      {isStaffView && !canActOnThisStep && (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground px-2 flex-shrink-0">
+          <Lock size={11} />
+          Unassigned
+        </span>
+      )}
+
+      {/* Update dialog — shown for admins always, staff only on their step */}
+      {canActOnThisStep && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="flex-shrink-0" data-testid={`button-update-step-${step.stepName}`}>
+              Update
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update: {STEP_LABELS[step.stepName]}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <div>
+                <Label>Status</Label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="skipped">Skipped</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Assign To: only shown for admins; staff are auto-assigned to themselves */}
+              {!isStaffView && (
+                <div>
+                  <Label>Assign To</Label>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select team member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unassigned</SelectItem>
+                      {users.map(u => (
+                        <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label>Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Add notes..."
+                  rows={3}
+                  className="mt-1"
+                />
+              </div>
+              <Button
+                className="w-full"
+                disabled={updateMutation.isPending}
+                onClick={() =>
+                  updateMutation.mutate({
+                    id: boxId,
+                    data: {
+                      stepName: step.stepName as typeof STEPS[number],
+                      status: selectedStatus as "pending" | "in_progress" | "completed" | "skipped",
+                      assignedUserId: resolvedAssignedUserId,
+                      notes: notes || null,
+                    },
+                  })
+                }
+              >
+                {updateMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -217,6 +242,7 @@ const editSchema = z.object({
   notes: z.string().optional(),
   photoLink: z.string().optional(),
   deadline: z.string().optional(),
+  inDate: z.string().optional(),
 });
 
 type EditFormValues = z.infer<typeof editSchema>;
@@ -243,6 +269,7 @@ type BoxData = {
   notes?: string | null;
   photoLink?: string | null;
   deadline?: string | null;
+  inDate?: string | null;
 };
 
 function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData; onUpdated: () => void; autoOpen?: boolean }) {
@@ -274,6 +301,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
       notes: box.notes ?? "",
       photoLink: box.photoLink ?? "",
       deadline: box.deadline ? new Date(box.deadline).toISOString().slice(0, 10) : "",
+      inDate: box.inDate ? new Date(box.inDate).toISOString().slice(0, 10) : "",
     },
   });
 
@@ -309,6 +337,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
         notes: values.notes || undefined,
         photoLink: values.photoLink || null,
         deadline: values.deadline ? new Date(values.deadline) as unknown as null : null,
+        inDate: values.inDate ? new Date(values.inDate) as unknown as null : null,
       },
     });
   }
@@ -467,13 +496,22 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
               )} />
             </div>
 
-            <FormField control={form.control} name="deadline" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Deadline</FormLabel>
-                <FormControl><Input type="date" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="inDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date Received</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="deadline" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deadline</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
 
             <FormField control={form.control} name="notes" render={({ field }) => (
               <FormItem>
@@ -633,7 +671,18 @@ export default function BoxDetailPage() {
   const autoOpenEdit = new URLSearchParams(search).get("edit") === "true";
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const { data: staffIdentity } = useQuery({
+    queryKey: ["auth-me-identity"],
+    queryFn: async () => {
+      const r = await fetch(`${BASE}/api/auth/me/identity`, { credentials: "include" });
+      if (!r.ok) return null;
+      return r.json() as Promise<{ userId: number | null; workflowStep: string | null; workflowSteps: string[]; roleName: string | null }>;
+    },
+    enabled: !!user && !isAdmin,
+  });
 
   const { data: box, isLoading } = useGetBox(id, {
     query: { enabled: !!id, queryKey: getGetBoxQueryKey(id) },
@@ -862,6 +911,7 @@ export default function BoxDetailPage() {
               boxId={id}
               users={users ?? []}
               onUpdated={invalidate}
+              staffIdentity={!isAdmin && staffIdentity?.userId ? staffIdentity as { userId: number; workflowStep: string | null } : null}
             />
           ))}
         </CardContent>

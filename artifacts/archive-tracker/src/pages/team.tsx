@@ -16,7 +16,7 @@ import { Plus, Pencil, Trash2, Users, KeyRound, ShieldOff, RefreshCw, Eye, EyeOf
 
 import { STEP_COLORS } from "@/lib/steps";
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type RoleInfo = { id: number; name: string; workflowStep: string };
 type UserRow = {

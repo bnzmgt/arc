@@ -12,7 +12,6 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">System configuration and status</p>
       </div>
-
       <Card className="border border-card-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -57,7 +56,6 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-
       <Card className="border border-card-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Workflow Configuration</CardTitle>
@@ -78,14 +76,13 @@ export default function SettingsPage() {
           </ol>
         </CardContent>
       </Card>
-
       <Card className="border border-card-border">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">About Arciflow</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">
           <p>Arciflow — Archive Tracking & Workflow Management System</p>
-          <p>Version 1.0.0</p>
+          <p>Version 1.0.1b</p>
           <p>Supports local and cloud deployment.</p>
           <p className="mt-3">
             Scan QR codes on printed labels to update workflow status from the field.

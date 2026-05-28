@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth";
 import { Plus, Pencil, Trash2, ShieldCheck, Crown, User, Eye, EyeOff } from "lucide-react";
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type Account = {
   id: number;

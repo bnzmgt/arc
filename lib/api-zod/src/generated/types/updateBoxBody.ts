@@ -28,4 +28,5 @@ export interface UpdateBoxBody {
   deadline?: Date | null;
   cost?: number | null;
   photoLink?: string | null;
+  inDate?: Date | null;
 }

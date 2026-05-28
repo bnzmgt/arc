@@ -176,6 +176,7 @@ export const UpdateBoxBody = zod.object({
   deadline: zod.coerce.date().nullish(),
   cost: zod.number().nullish(),
   photoLink: zod.string().nullish(),
+  inDate: zod.coerce.date().nullish(),
 });
 
 export const UpdateBoxResponse = zod.object({

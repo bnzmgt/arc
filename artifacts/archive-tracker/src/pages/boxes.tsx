@@ -1,16 +1,123 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useListBoxes, useDeleteBox, getListBoxesQueryKey } from "@workspace/api-client-react";
+import type { Box } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BoxStatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Clock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Clock, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, differenceInCalendarDays } from "date-fns";
 import { STEP_LABELS, STEP_COLORS } from "@/lib/steps";
+import { useAuth } from "@/contexts/auth";
+import * as XLSX from "xlsx";
+
+type ExportFilter = "all" | "owned" | "loan";
+
+const STATUS_LABELS: Record<string, string> = {
+  received: "Received",
+  in_progress: "In Progress",
+  completed: "Completed",
+  returned: "Returned",
+};
+
+const CUSTODY_LABELS: Record<string, string> = {
+  owned: "Owned",
+  loan: "On Loan",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  P0: "P0 — Very Urgent",
+  P1: "P1 — Urgent",
+  P2: "P2 — Medium",
+  P3: "P3 — Low",
+};
+
+const MATERIAL_LABELS: Record<string, string> = {
+  newspaper: "Newspaper",
+  maps: "Maps",
+  books: "Books",
+  magazine: "Magazine",
+  archives: "Archives",
+  heritage_items: "Heritage Items",
+};
+
+function formatDate(val: string | null | undefined) {
+  if (!val) return "";
+  try { return format(new Date(val), "d MMM yyyy"); } catch { return val; }
+}
+
+function formatRupiah(val: string | number | null | undefined): string {
+  if (val === null || val === undefined || val === "") return "";
+  const n = parseFloat(String(val));
+  if (isNaN(n)) return String(val);
+  return "Rp " + Math.round(n).toLocaleString("id-ID");
+}
+
+function boxToRow(box: Box) {
+  return {
+    "Box Code": box.boxCode,
+    "Custody Type": box.custodyType ? (CUSTODY_LABELS[box.custodyType] ?? box.custodyType) : "",
+    "Project Name": box.clientName,
+    "Collections Owner": box.collectionsOwner ?? "",
+    "Place of Origin": box.placeOfOrigin ?? "",
+    "Depot PTAD (Location)": box.location ?? "",
+    "Archive Year": box.archiveYear ?? "",
+    "Total Items": box.totalItems ?? "",
+    "Material Types": (box.materialTypes ?? []).map(m => MATERIAL_LABELS[m] ?? m).join(", "),
+    "Priority": box.priority ? (PRIORITY_LABELS[box.priority] ?? box.priority) : "",
+    "Description": box.description ?? "",
+    "Notes": box.notes ?? "",
+    "Date In": formatDate(box.inDate),
+    "Deadline": formatDate(box.deadline),
+    "Date Out": formatDate(box.outDate),
+    "Cost": box.cost ? formatRupiah(box.cost) : "",
+  };
+}
+
+function exportToExcel(boxes: Box[], filter: ExportFilter) {
+  const filtered = filter === "owned"
+    ? boxes.filter(b => b.custodyType === "owned")
+    : filter === "loan"
+    ? boxes.filter(b => b.custodyType === "loan")
+    : boxes;
+
+  const rows = filtered.map(boxToRow);
+
+  // Blank separator row then total cost row at the bottom
+  const totalCost = filtered.reduce((sum, b) => {
+    const n = parseFloat(b.cost ?? "");
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
+  const emptyRow: Record<string, string | number> = {};
+  Object.keys(rows[0] ?? {}).forEach(k => { emptyRow[k] = ""; });
+
+  const totalRow: Record<string, string | number> = {};
+  Object.keys(rows[0] ?? {}).forEach(k => { totalRow[k] = ""; });
+  totalRow["Box Code"] = "TOTAL";
+  totalRow["Cost"] = formatRupiah(totalCost);
+
+  const ws = XLSX.utils.json_to_sheet([...rows, emptyRow, totalRow]);
+
+  // Auto-fit column widths
+  const allRows = [...rows, totalRow];
+  const colWidths = Object.keys(rows[0] ?? {}).map(key => ({
+    wch: Math.max(key.length, ...allRows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
+  }));
+  ws["!cols"] = colWidths;
+
+  const wb = XLSX.utils.book_new();
+  const sheetName = filter === "owned" ? "Owned Boxes" : filter === "loan" ? "Loan Boxes" : "All Boxes";
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const suffix = filter === "owned" ? "_owned" : filter === "loan" ? "_loan" : "_all";
+  const dateStr = format(new Date(), "yyyy-MM-dd");
+  XLSX.writeFile(wb, `arciflow_boxes${suffix}_${dateStr}.xlsx`);
+}
 
 function getDeadlineStatus(deadline: Date | string | null | undefined, boxStatus: string) {
   if (!deadline || boxStatus === "completed" || boxStatus === "returned") return null;
@@ -49,6 +156,7 @@ type TabKey = "active" | "completed" | "returned" | "all";
 
 export default function BoxesPage() {
   const [, navigate] = useLocation();
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TabKey>("active");
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -108,10 +216,46 @@ export default function BoxesPage() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Archive Boxes</h1>
           <p className="text-sm text-muted-foreground mt-1">{allBoxes?.length ?? 0} boxes total</p>
         </div>
-        <Button onClick={() => navigate("/boxes/new")} data-testid="button-new-box">
-          <Plus size={16} className="mr-2" />
-          New Box
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Export dropdown — visible to all logged-in users */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={isLoading || !allBoxes?.length}>
+                <Download size={15} className="mr-2" />
+                Export Excel
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                Choose what to export
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "all")}>
+                All Boxes
+                <span className="ml-auto text-xs text-muted-foreground">{allBoxes?.length ?? 0}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "owned")}>
+                Owned Only
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {allBoxes?.filter(b => b.custodyType === "owned").length ?? 0}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "loan")}>
+                On Loan Only
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {allBoxes?.filter(b => b.custodyType === "loan").length ?? 0}
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {isAdmin && (
+            <Button onClick={() => navigate("/boxes/new")} data-testid="button-new-box">
+              <Plus size={16} className="mr-2" />
+              New Box
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Deadline Alerts (active only) */}
@@ -213,7 +357,7 @@ export default function BoxesPage() {
                      tab === "active"    ? "No active boxes" :
                      "No boxes found"}
                   </p>
-                  {tab === "active" && (
+                  {tab === "active" && isAdmin && (
                     <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/boxes/new")}>
                       Add your first box
                     </Button>
@@ -257,30 +401,34 @@ export default function BoxesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          data-testid={`button-edit-${box.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/boxes/${box.id}?edit=true`);
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteId(box.id);
-                          }}
-                          data-testid={`button-delete-${box.id}`}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            data-testid={`button-edit-${box.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/boxes/${box.id}?edit=true`);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteId(box.id);
+                            }}
+                            data-testid={`button-delete-${box.id}`}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

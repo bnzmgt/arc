@@ -20,7 +20,7 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
-const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null);

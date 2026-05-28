@@ -77,6 +77,7 @@ export const activityLogTable = pgTable("activity_log", {
   action: text("action").notNull(),
   stepName: text("step_name"),
   performedByUserId: integer("performed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  performedByAdminId: integer("performed_by_admin_id"),
   timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
 });
 

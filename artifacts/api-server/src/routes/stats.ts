@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, count, sum, desc, and } from "drizzle-orm";
-import { db, boxesTable, workflowStepsTable, activityLogTable, usersTable } from "@workspace/db";
+import { eq, count, sum, desc, and, sql } from "drizzle-orm";
+import { db, boxesTable, workflowStepsTable, activityLogTable, usersTable, adminAccountsTable } from "@workspace/db";
 import { requireAdmin } from "../lib/authMiddleware";
 
 const router: IRouter = Router();
 
-router.get("/stats/dashboard", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/stats/dashboard", async (_req, res): Promise<void> => {
   const [stats] = await db
     .select({
       totalBoxes: count(boxesTable.id),
@@ -41,7 +41,7 @@ router.get("/stats/dashboard", requireAdmin, async (_req, res): Promise<void> =>
   });
 });
 
-router.get("/stats/workflow-progress", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/stats/workflow-progress", async (_req, res): Promise<void> => {
   const stepNames = ["cleaning", "cataloging", "scanning", "qc", "repacking", "returning"] as const;
 
   const rows = await db
@@ -65,7 +65,7 @@ router.get("/stats/workflow-progress", requireAdmin, async (_req, res): Promise<
   res.json(progress);
 });
 
-router.get("/stats/recent-activity", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
   const activities = await db
     .select({
       id: activityLogTable.id,
@@ -74,19 +74,20 @@ router.get("/stats/recent-activity", requireAdmin, async (_req, res): Promise<vo
       clientName: boxesTable.clientName,
       action: activityLogTable.action,
       stepName: activityLogTable.stepName,
-      performedBy: usersTable.name,
+      performedBy: sql<string | null>`COALESCE(${usersTable.name}, ${adminAccountsTable.displayName})`,
       timestamp: activityLogTable.timestamp,
     })
     .from(activityLogTable)
     .leftJoin(boxesTable, eq(activityLogTable.boxId, boxesTable.id))
     .leftJoin(usersTable, eq(activityLogTable.performedByUserId, usersTable.id))
+    .leftJoin(adminAccountsTable, eq(activityLogTable.performedByAdminId, adminAccountsTable.id))
     .orderBy(desc(activityLogTable.timestamp))
     .limit(20);
 
   res.json(activities);
 });
 
-router.get("/stats/activity-log", requireAdmin, async (req, res): Promise<void> => {
+router.get("/stats/activity-log", async (req, res): Promise<void> => {
   const limit = Math.min(parseInt((req.query.limit as string) ?? "100", 10), 200);
   const offset = parseInt((req.query.offset as string) ?? "0", 10);
   const stepFilter = req.query.step as string | undefined;
@@ -106,13 +107,14 @@ router.get("/stats/activity-log", requireAdmin, async (req, res): Promise<void> 
       clientName: boxesTable.clientName,
       action: activityLogTable.action,
       stepName: activityLogTable.stepName,
-      performedBy: usersTable.name,
+      performedBy: sql<string | null>`COALESCE(${usersTable.name}, ${adminAccountsTable.displayName})`,
       performedByUserId: activityLogTable.performedByUserId,
       timestamp: activityLogTable.timestamp,
     })
     .from(activityLogTable)
     .leftJoin(boxesTable, eq(activityLogTable.boxId, boxesTable.id))
     .leftJoin(usersTable, eq(activityLogTable.performedByUserId, usersTable.id))
+    .leftJoin(adminAccountsTable, eq(activityLogTable.performedByAdminId, adminAccountsTable.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(activityLogTable.timestamp))
     .limit(limit)

@@ -4,16 +4,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { format, getMonth, getYear } from "date-fns";
-import { Download, Search, TrendingUp, DollarSign, ShoppingCart, Calendar } from "lucide-react";
+import { Download, Search, TrendingUp, Banknote, ShoppingCart, Calendar } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_FULL = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
 const CUSTODY_COLORS: Record<string, string> = { loan: "#f97316", owned: "#3b82f6" };
 const BAR_COLOR = "#f97316";
+
+const MATERIAL_LABELS: Record<string, string> = {
+  newspaper: "Newspaper", maps: "Maps", books: "Books",
+  magazine: "Magazine", archives: "Archives", heritage_items: "Heritage Items",
+};
+const CUSTODY_LABELS: Record<string, string> = { owned: "Owned", loan: "On Loan" };
+const STATUS_LABELS: Record<string, string> = {
+  received: "Received", in_progress: "In Progress",
+  completed: "Completed", returned: "Returned",
+};
+
+const COL_WIDTHS = [16, 26, 22, 12, 28, 14, 14, 20, 32].map(w => ({ wch: w }));
+
+type BoxItem = {
+  id: number; boxCode: string; clientName: string; collectionsOwner?: string | null;
+  custodyType?: string | null; materialTypes?: string[] | null; status: string;
+  inDate?: string | null; cost?: string | null; notes?: string | null; createdAt: string;
+};
+
+type ExcelRow = Record<string, string>;
+
+const EMPTY_ROW: ExcelRow = {
+  "Box Code": "", "Project Name": "", "Collections Owner": "",
+  "Custody Type": "", "Material Types": "", "Status": "",
+  "Date In": "", "Cost (Rp)": "", "Notes": "",
+};
 
 function parseCost(cost: string | null | undefined): number {
   if (!cost) return 0;
@@ -25,48 +57,116 @@ function fmt(n: number) {
   return n.toLocaleString("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 }
 
+/** Use inDate if set (when the item was physically acquired), otherwise fall back to createdAt */
+function getAcquisitionDate(b: BoxItem): Date {
+  return new Date(b.inDate ?? b.createdAt);
+}
+
+function boxToRow(b: BoxItem): ExcelRow {
+  return {
+    "Box Code":          b.boxCode,
+    "Project Name":      b.clientName,
+    "Collections Owner": b.collectionsOwner ?? "",
+    "Custody Type":      b.custodyType ? (CUSTODY_LABELS[b.custodyType] ?? b.custodyType) : "",
+    "Material Types":    (b.materialTypes ?? []).map(m => MATERIAL_LABELS[m] ?? m).join(", "),
+    "Status":            STATUS_LABELS[b.status] ?? b.status,
+    "Date In":           b.inDate ? format(new Date(b.inDate), "d MMM yyyy") : "",
+    "Cost (Rp)":         fmt(parseCost(b.cost)),
+    "Notes":             b.notes ?? "",
+  };
+}
+
+function sectionRow(label: string): ExcelRow {
+  return { ...EMPTY_ROW, "Box Code": label };
+}
+
+function totalRow(label: string, amount: number): ExcelRow {
+  return { ...EMPTY_ROW, "Box Code": label, "Cost (Rp)": fmt(amount) };
+}
+
+function makeSheet(rows: ExcelRow[]): XLSX.WorkSheet {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = COL_WIDTHS;
+  return ws;
+}
+
+function buildMonthSheet(boxes: BoxItem[], month: number, year: number): XLSX.WorkSheet {
+  const items = boxes.filter(b => {
+    const d = getAcquisitionDate(b);
+    return getYear(d) === year && getMonth(d) === month;
+  });
+  const total = items.reduce((s, b) => s + parseCost(b.cost), 0);
+  return makeSheet([
+    ...items.map(boxToRow),
+    EMPTY_ROW,
+    totalRow(`TOTAL — ${MONTHS_FULL[month]} ${year}`, total),
+  ]);
+}
+
+function buildYearSheet(boxes: BoxItem[], year: number): XLSX.WorkSheet {
+  const yearItems = boxes.filter(b => getYear(getAcquisitionDate(b)) === year);
+  const rows: ExcelRow[] = [];
+  let grandTotal = 0;
+
+  for (let m = 0; m < 12; m++) {
+    const monthItems = yearItems.filter(b => getMonth(getAcquisitionDate(b)) === m);
+    if (monthItems.length === 0) continue;
+    const monthTotal = monthItems.reduce((s, b) => s + parseCost(b.cost), 0);
+    grandTotal += monthTotal;
+    rows.push(sectionRow(`── ${MONTHS_FULL[m]} ${year} ──`));
+    monthItems.forEach(b => rows.push(boxToRow(b)));
+    rows.push(totalRow(`  Subtotal ${MONTHS_FULL[m]}`, monthTotal));
+    rows.push(EMPTY_ROW);
+  }
+
+  rows.push(totalRow(`GRAND TOTAL ${year}`, grandTotal));
+  return makeSheet(rows);
+}
+
 export default function AcquisitionsPage() {
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportType, setExportType] = useState<"monthly" | "yearly" | "alltime">("alltime");
+  const [exportYear, setExportYear] = useState<string>(String(new Date().getFullYear()));
+  // Empty set = all months; populated set = specific months selected
+  const [exportMonths, setExportMonths] = useState<Set<number>>(new Set());
 
   const { data: allBoxes, isLoading } = useListBoxes({}, {
     query: { queryKey: getListBoxesQueryKey({}) },
   });
 
-  // Only boxes with a cost
   const costBoxes = useMemo(() => (allBoxes ?? []).filter(b => parseCost(b.cost) > 0), [allBoxes]);
 
-  // Summary numbers
   const totalSpend = useMemo(() => costBoxes.reduce((s, b) => s + parseCost(b.cost), 0), [costBoxes]);
   const thisYear = new Date().getFullYear();
   const thisMonth = new Date().getMonth();
 
   const yearlySpend = useMemo(
-    () => costBoxes.filter(b => getYear(new Date(b.createdAt)) === thisYear)
+    () => costBoxes.filter(b => getYear(getAcquisitionDate(b)) === thisYear)
                    .reduce((s, b) => s + parseCost(b.cost), 0),
     [costBoxes, thisYear]
   );
   const monthlySpend = useMemo(
     () => costBoxes.filter(b => {
-      const d = new Date(b.createdAt);
+      const d = getAcquisitionDate(b);
       return getYear(d) === thisYear && getMonth(d) === thisMonth;
     }).reduce((s, b) => s + parseCost(b.cost), 0),
     [costBoxes, thisYear, thisMonth]
   );
 
-  // Monthly bar chart data for selected year
   const monthlyData = useMemo(() => {
     const buckets = Array.from({ length: 12 }, (_, i) => ({ month: MONTHS[i], spend: 0 }));
     costBoxes
-      .filter(b => getYear(new Date(b.createdAt)) === yearFilter)
+      .filter(b => getYear(getAcquisitionDate(b)) === yearFilter)
       .forEach(b => {
-        const m = getMonth(new Date(b.createdAt));
+        const m = getMonth(getAcquisitionDate(b));
         buckets[m].spend += parseCost(b.cost);
       });
     return buckets;
   }, [costBoxes, yearFilter]);
 
-  // Custody type pie chart
   const custodyData = useMemo(() => {
     const map: Record<string, number> = { loan: 0, owned: 0, "—": 0 };
     costBoxes.forEach(b => {
@@ -78,14 +178,12 @@ export default function AcquisitionsPage() {
       .map(([name, value]) => ({ name: name === "loan" ? "On Loan" : name === "owned" ? "Owned" : "Unknown", value, raw: name }));
   }, [costBoxes]);
 
-  // Available years for filter
   const years = useMemo(() => {
-    const set = new Set<number>(costBoxes.map(b => getYear(new Date(b.createdAt))));
+    const set = new Set<number>(costBoxes.map(b => getYear(getAcquisitionDate(b))));
     if (!set.size) set.add(thisYear);
     return Array.from(set).sort((a, b) => b - a);
   }, [costBoxes, thisYear]);
 
-  // Filtered table rows
   const tableRows = useMemo(() => {
     const q = search.toLowerCase();
     return costBoxes.filter(b =>
@@ -93,35 +191,112 @@ export default function AcquisitionsPage() {
       b.boxCode.toLowerCase().includes(q) ||
       b.clientName.toLowerCase().includes(q) ||
       (b.materialTypes ?? []).join(", ").toLowerCase().includes(q)
-    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    ).sort((a, b) => getAcquisitionDate(b).getTime() - getAcquisitionDate(a).getTime());
   }, [costBoxes, search]);
 
-  // Excel export
-  function handleExport() {
-    const rows = tableRows.map(b => ({
-      "Box Code": b.boxCode,
-      "Client":   b.clientName,
-      "Type":     (b.materialTypes ?? []).join(", "),
-      "Custody":  b.custodyType ?? "",
-      "Status":   b.status,
-      "Cost ($)": parseCost(b.cost),
-      "Date":     format(new Date(b.createdAt), "yyyy-MM-dd"),
-      "Notes":    b.notes ?? "",
-    }));
+  function toggleMonth(m: number) {
+    setExportMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(m)) next.delete(m);
+      else next.add(m);
+      return next;
+    });
+  }
 
-    const summary = [
-      {},
-      { "Box Code": "SUMMARY" },
-      { "Box Code": "Total All-Time", "Cost ($)": totalSpend },
-      { "Box Code": `Total ${thisYear}`, "Cost ($)": yearlySpend },
-      { "Box Code": `This Month (${MONTHS[thisMonth]} ${thisYear})`, "Cost ($)": monthlySpend },
-    ];
-
-    const ws = XLSX.utils.json_to_sheet([...rows, ...summary]);
-    ws["!cols"] = [16, 24, 14, 12, 14, 12, 14, 30].map(w => ({ wch: w }));
+  function runExport() {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Acquisitions");
-    XLSX.writeFile(wb, `acquisitions-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    const dateStr = format(new Date(), "yyyy-MM-dd");
+    const yr = parseInt(exportYear);
+
+    if (exportType === "monthly") {
+      // Determine which months to export: empty = all
+      const monthsToExport = exportMonths.size === 0
+        ? Array.from({ length: 12 }, (_, i) => i)
+        : Array.from(exportMonths).sort((a, b) => a - b);
+
+      const summaryRows: ExcelRow[] = [
+        sectionRow(`Monthly Report — ${yr}`),
+        EMPTY_ROW,
+        { ...EMPTY_ROW, "Box Code": "Month", "Cost (Rp)": "Total Spend" },
+      ];
+      let hasAny = false;
+
+      for (const m of monthsToExport) {
+        const items = costBoxes.filter(b => {
+          const d = getAcquisitionDate(b);
+          return getYear(d) === yr && getMonth(d) === m;
+        });
+        if (items.length === 0) continue;
+        hasAny = true;
+        const ws = buildMonthSheet(costBoxes, m, yr);
+        XLSX.utils.book_append_sheet(wb, ws, `${MONTHS[m]} ${yr}`);
+        const monthTotal = items.reduce((s, b) => s + parseCost(b.cost), 0);
+        summaryRows.push({ ...EMPTY_ROW, "Box Code": `${MONTHS_FULL[m]} ${yr}`, "Cost (Rp)": fmt(monthTotal) });
+      }
+
+      if (!hasAny) {
+        XLSX.utils.book_append_sheet(wb, makeSheet([sectionRow(`No data for selected period`)]), "No Data");
+      } else {
+        const selectionTotal = costBoxes
+          .filter(b => {
+            const d = getAcquisitionDate(b);
+            return getYear(d) === yr && monthsToExport.includes(getMonth(d));
+          })
+          .reduce((s, b) => s + parseCost(b.cost), 0);
+        summaryRows.push(EMPTY_ROW);
+        summaryRows.push(totalRow("TOTAL (selected months)", selectionTotal));
+        XLSX.utils.book_append_sheet(wb, makeSheet(summaryRows), `Summary ${yr}`);
+      }
+
+      const suffix = exportMonths.size === 0 ? "all-months"
+        : Array.from(exportMonths).sort((a, b) => a - b).map(m => MONTHS[m].toLowerCase()).join("-");
+      XLSX.writeFile(wb, `acquisitions-monthly-${yr}-${suffix}-${dateStr}.xlsx`);
+
+    } else if (exportType === "yearly") {
+      const summaryRows: ExcelRow[] = [
+        sectionRow(`Yearly Report — ${yr}`),
+        EMPTY_ROW,
+        { ...EMPTY_ROW, "Box Code": "Month", "Cost (Rp)": "Total Spend" },
+      ];
+      let grandTotal = 0;
+      for (let m = 0; m < 12; m++) {
+        const items = costBoxes.filter(b => {
+          const d = getAcquisitionDate(b);
+          return getYear(d) === yr && getMonth(d) === m;
+        });
+        if (items.length === 0) continue;
+        const ws = buildMonthSheet(costBoxes, m, yr);
+        XLSX.utils.book_append_sheet(wb, ws, `${MONTHS[m]} ${yr}`);
+        const monthTotal = items.reduce((s, b) => s + parseCost(b.cost), 0);
+        grandTotal += monthTotal;
+        summaryRows.push({ ...EMPTY_ROW, "Box Code": `${MONTHS_FULL[m]} ${yr}`, "Cost (Rp)": fmt(monthTotal) });
+      }
+      summaryRows.push(EMPTY_ROW);
+      summaryRows.push(totalRow(`GRAND TOTAL ${yr}`, grandTotal));
+      XLSX.utils.book_append_sheet(wb, makeSheet(summaryRows), `Summary ${yr}`);
+      XLSX.writeFile(wb, `acquisitions-yearly-${yr}-${dateStr}.xlsx`);
+
+    } else {
+      const summaryRows: ExcelRow[] = [
+        sectionRow("All-Time Summary"),
+        EMPTY_ROW,
+        { ...EMPTY_ROW, "Box Code": "Year", "Cost (Rp)": "Total Spend" },
+      ];
+      const sortedYears = [...years].sort((a, b) => a - b);
+      for (const y of sortedYears) {
+        const ws = buildYearSheet(costBoxes, y);
+        XLSX.utils.book_append_sheet(wb, ws, String(y));
+        const yrTotal = costBoxes.filter(b => getYear(getAcquisitionDate(b)) === y)
+                                 .reduce((s, b) => s + parseCost(b.cost), 0);
+        summaryRows.push({ ...EMPTY_ROW, "Box Code": String(y), "Cost (Rp)": fmt(yrTotal) });
+      }
+      summaryRows.push(EMPTY_ROW);
+      summaryRows.push(totalRow("ALL-TIME TOTAL", totalSpend));
+      XLSX.utils.book_append_sheet(wb, makeSheet(summaryRows), "Summary");
+      XLSX.writeFile(wb, `acquisitions-alltime-${dateStr}.xlsx`);
+    }
+
+    setExportOpen(false);
   }
 
   return (
@@ -131,11 +306,123 @@ export default function AcquisitionsPage() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Acquisitions</h1>
           <p className="text-sm text-muted-foreground mt-1">Track spending on loans and purchased items</p>
         </div>
-        <Button onClick={handleExport} variant="outline" className="gap-2" data-testid="button-export-excel">
+        <Button onClick={() => setExportOpen(true)} variant="outline" className="gap-2" data-testid="button-export-excel">
           <Download size={15} />
           Export Excel
         </Button>
       </div>
+
+      {/* Export Dialog */}
+      <Dialog open={exportOpen} onOpenChange={open => { setExportOpen(open); if (!open) setExportMonths(new Set()); }}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Export Report</DialogTitle>
+            <DialogDescription className="sr-only">Choose a report type and options, then click Download.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-1">
+            <RadioGroup
+              value={exportType}
+              onValueChange={v => { setExportType(v as typeof exportType); setExportMonths(new Set()); }}
+              className="space-y-2"
+            >
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                <RadioGroupItem value="monthly" id="exp-monthly" className="mt-0.5" />
+                <Label htmlFor="exp-monthly" className="cursor-pointer">
+                  <span className="font-medium text-sm">Monthly Report</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Select one or more months — each gets its own sheet</p>
+                </Label>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                <RadioGroupItem value="yearly" id="exp-yearly" className="mt-0.5" />
+                <Label htmlFor="exp-yearly" className="cursor-pointer">
+                  <span className="font-medium text-sm">Yearly Report</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Items grouped by month with subtotals and grand total</p>
+                </Label>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors">
+                <RadioGroupItem value="alltime" id="exp-alltime" className="mt-0.5" />
+                <Label htmlFor="exp-alltime" className="cursor-pointer">
+                  <span className="font-medium text-sm">All-Time Report</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">One tab per year + Summary sheet with year totals</p>
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {exportType !== "alltime" && (
+              <div className="space-y-3 pt-1 border-t border-border">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Year</Label>
+                  <Select value={exportYear} onValueChange={setExportYear}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map(y => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {exportType === "monthly" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Months
+                        {exportMonths.size > 0 && (
+                          <span className="ml-1.5 normal-case font-normal">({exportMonths.size} selected)</span>
+                        )}
+                      </Label>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setExportMonths(new Set())}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                        >
+                          All
+                        </button>
+                        <span className="text-muted-foreground text-xs">·</span>
+                        <button
+                          onClick={() => setExportMonths(new Set(Array.from({ length: 12 }, (_, i) => i)))}
+                          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                        >
+                          None
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {MONTHS.map((name, i) => (
+                        <button
+                          key={i}
+                          onClick={() => toggleMonth(i)}
+                          className={`text-xs py-1.5 rounded-md font-medium border transition-colors ${
+                            exportMonths.size === 0 || exportMonths.has(i)
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {exportMonths.size === 0 ? "All months will be exported" : "Only highlighted months will be exported"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancel</Button>
+            <Button onClick={runExport} className="gap-2">
+              <Download size={14} />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -143,7 +430,7 @@ export default function AcquisitionsPage() {
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-950/40">
-                <DollarSign size={18} className="text-orange-600 dark:text-orange-400" />
+                <Banknote size={18} className="text-orange-600 dark:text-orange-400" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium">All-Time Spend</p>
@@ -182,7 +469,6 @@ export default function AcquisitionsPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Monthly bar chart */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold">Monthly Spend</CardTitle>
@@ -216,7 +502,7 @@ export default function AcquisitionsPage() {
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={v => v === 0 ? "0" : `$${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={v => v === 0 ? "0" : `Rp${(v / 1_000_000).toFixed(0)}jt`}
                   />
                   <Tooltip
                     formatter={(v: number) => [fmt(v), "Spend"]}
@@ -229,7 +515,6 @@ export default function AcquisitionsPage() {
           </CardContent>
         </Card>
 
-        {/* Custody pie chart */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Spend by Custody Type</CardTitle>
@@ -292,7 +577,7 @@ export default function AcquisitionsPage() {
                 <TableHead>Owner</TableHead>
                 <TableHead>Custody</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Date In</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
               </TableRow>
             </TableHeader>
@@ -337,7 +622,9 @@ export default function AcquisitionsPage() {
                       {box.status.replace("_", " ")}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(box.createdAt), "d MMM yyyy")}
+                      {box.inDate
+                        ? format(new Date(box.inDate), "d MMM yyyy")
+                        : format(new Date(box.createdAt), "d MMM yyyy")}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-foreground">
                       {fmt(parseCost(box.cost))}

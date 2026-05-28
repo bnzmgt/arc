@@ -43,7 +43,7 @@ interface ScanUser {
 interface StepUpdateFormProps {
   stepName: string;
   boxId: number;
-  userId: number;
+  userId: number | null;
   ticketCode: string;
   onSuccess: (stepName: string) => void;
   onCancel: () => void;
@@ -60,17 +60,13 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
       onSuccess: (updated) => {
         queryClient.invalidateQueries({ queryKey: getGetByTicketCodeQueryKey(ticketCode) });
         onSuccess(updated.stepName);
-        toast({ title: `Step "${STEP_LABELS[updated.stepName] ?? updated.stepName}" marked as "${updated.status}"` });
+        toast({ title: `Step "${STEP_LABELS[updated.stepName] ?? updated.stepName}" updated successfully` });
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        const msg = (err as { data?: { error?: string } })?.data?.error;
         toast({
-          title: msg ?? "Update failed",
-          description: msg?.includes("Previous")
-            ? "The previous step must be completed first."
-            : msg?.includes("Access denied")
-            ? "Your role does not allow updating this step."
-            : undefined,
+          title: "Update failed",
+          description: msg ?? "Something went wrong. Please try again.",
           variant: "destructive",
         });
       },
@@ -113,7 +109,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
               data: {
                 stepName: stepName as Parameters<typeof mutation.mutate>[0]["data"]["stepName"],
                 status: status as "pending" | "in_progress" | "completed" | "skipped",
-                assignedUserId: userId,
+                assignedUserId: userId ?? undefined,
                 notes: notes.trim() || null,
               },
             })
@@ -172,9 +168,15 @@ export default function ScanPage() {
   const activeUsers: ScanUser[] = (users as ScanUser[]).filter(
     (u) => u.active === "true" || u.active === true
   );
-  const identity = user
-    ? activeUsers.find((u) => u.name === user.displayName) ?? activeUsers[0] ?? null
-    : null;
+  // Find all role entries for the logged-in user (a user can have multiple roles)
+  const identityRows = user
+    ? activeUsers.filter((u) => u.name === user.displayName)
+    : [];
+  const identity = identityRows[0] ?? null;
+  // Collect all workflow steps across all roles this user has
+  const identitySteps = identityRows
+    .map((u) => u.workflowStep)
+    .filter((s): s is string => !!s);
   const isAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin";
 
   return (
@@ -207,8 +209,8 @@ export default function ScanPage() {
               : user
               ? isAdmin
                 ? "Signed in"
-                : identity?.workflowStep
-                ? `Can update: ${STEP_LABELS[identity.workflowStep] ?? identity.workflowStep}`
+                : identitySteps.length > 0
+                ? `Can update: ${identitySteps.map(s => STEP_LABELS[s] ?? s).join(", ")}`
                 : identity?.roleName ?? "No step assignment"
               : "Sign in required"}
             </p>
@@ -320,7 +322,7 @@ export default function ScanPage() {
                 const repacking = workflowSteps.find((s) => s.stepOrder === 5);
                 sequenceOk = !!repacking && (repacking.status === "completed" || repacking.status === "skipped");
               }
-              const roleOk = !!identity && (isAdmin || identity.workflowStep === step.stepName);
+              const roleOk = isAdmin || (!!identity && identitySteps.includes(step.stepName));
               const canUpdate = sequenceOk && roleOk;
               const isUpdating = activeUpdateStep === step.stepName;
 
@@ -412,11 +414,11 @@ export default function ScanPage() {
                     )}
 
                     {/* Update form */}
-                    {user && isUpdating && identity && (
+                    {user && isUpdating && (identity || isAdmin) && (
                       <StepUpdateForm
                         stepName={step.stepName}
                         boxId={box.id}
-                        userId={identity.id}
+                        userId={identity?.id ?? null}
                         ticketCode={ticketCode}
                         onSuccess={(sn) => {
                           setActiveUpdateStep(null);
