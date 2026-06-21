@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BoxStatusBadge } from "@/components/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Clock, Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Pencil, Trash2, Package, AlertTriangle, Clock, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, differenceInCalendarDays } from "date-fns";
 import { STEP_LABELS, STEP_COLORS } from "@/lib/steps";
@@ -51,13 +52,6 @@ function formatDate(val: string | null | undefined) {
   try { return format(new Date(val), "d MMM yyyy"); } catch { return val; }
 }
 
-function formatRupiah(val: string | number | null | undefined): string {
-  if (val === null || val === undefined || val === "") return "";
-  const n = parseFloat(String(val));
-  if (isNaN(n)) return String(val);
-  return "Rp " + Math.round(n).toLocaleString("id-ID");
-}
-
 function boxToRow(box: Box) {
   return {
     "Box Code": box.boxCode,
@@ -75,7 +69,6 @@ function boxToRow(box: Box) {
     "Date In": formatDate(box.inDate),
     "Deadline": formatDate(box.deadline),
     "Date Out": formatDate(box.outDate),
-    "Cost": box.cost ? formatRupiah(box.cost) : "",
   };
 }
 
@@ -88,23 +81,10 @@ function exportToExcel(boxes: Box[], filter: ExportFilter) {
 
   const rows = filtered.map(boxToRow);
 
-  // Blank separator row then total cost row at the bottom
-  const totalCost = filtered.reduce((sum, b) => {
-    const n = parseFloat(b.cost ?? "");
-    return sum + (isNaN(n) ? 0 : n);
-  }, 0);
-  const emptyRow: Record<string, string | number> = {};
-  Object.keys(rows[0] ?? {}).forEach(k => { emptyRow[k] = ""; });
-
-  const totalRow: Record<string, string | number> = {};
-  Object.keys(rows[0] ?? {}).forEach(k => { totalRow[k] = ""; });
-  totalRow["Box Code"] = "TOTAL";
-  totalRow["Cost"] = formatRupiah(totalCost);
-
-  const ws = XLSX.utils.json_to_sheet([...rows, emptyRow, totalRow]);
+  const ws = XLSX.utils.json_to_sheet(rows);
 
   // Auto-fit column widths
-  const allRows = [...rows, totalRow];
+  const allRows = rows;
   const colWidths = Object.keys(rows[0] ?? {}).map(key => ({
     wch: Math.max(key.length, ...allRows.map(r => String(r[key as keyof typeof r] ?? "").length)) + 2,
   }));
@@ -154,11 +134,14 @@ function DeadlineBadge({ deadline, boxStatus }: { deadline?: string | null; boxS
 
 type TabKey = "active" | "completed" | "returned" | "all";
 
+
 export default function BoxesPage() {
   const [, navigate] = useLocation();
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<TabKey>("active");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -191,6 +174,10 @@ export default function BoxesPage() {
               : tab === "completed" ? completedBoxes
               : tab === "returned"  ? returnedBoxes
               : allBoxes ?? [];
+
+  const totalPages = Math.max(1, Math.ceil(boxes.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedBoxes = boxes.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Deadline alerts (active boxes only)
   const overdueBoxes = activeBoxes.filter(b => {
@@ -289,7 +276,7 @@ export default function BoxesPage() {
           {tabs.map(t => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(t.key); setPage(1); }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                 tab === t.key
                   ? "bg-background shadow-sm text-foreground"
@@ -316,7 +303,7 @@ export default function BoxesPage() {
             type="search"
             placeholder="Search boxes..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="pl-9"
             data-testid="input-search"
           />
@@ -365,7 +352,7 @@ export default function BoxesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              boxes.map(box => {
+              pagedBoxes.map(box => {
                 const deadlineStatus = getDeadlineStatus(box.deadline, box.status);
                 const isUrgent = deadlineStatus?.type === "overdue" || deadlineStatus?.type === "today";
                 return (
@@ -438,6 +425,70 @@ export default function BoxesPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {!isLoading && boxes.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Rows per page:</span>
+            <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="h-8 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[12, 25, 50, 100].map(n => (
+                  <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>
+              {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, boxes.length)} of {boxes.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={safePage <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              <ChevronLeft size={14} />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+              .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "…" ? (
+                  <span key={`ellipsis-${i}`} className="px-1">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === safePage ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8 text-xs"
+                    onClick={() => setPage(p as number)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              <ChevronRight size={14} />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>

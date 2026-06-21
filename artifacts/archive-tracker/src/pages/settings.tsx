@@ -9,7 +9,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-5 max-w-2xl" data-testid="settings-page">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">About</h1>
         <p className="text-sm text-muted-foreground mt-1">System configuration and status</p>
       </div>
       <Card className="border border-card-border">
@@ -82,8 +82,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">
           <p>Arciflow — Archive Tracking & Workflow Management System</p>
-          <p>Version 1.0.1b</p>
-          <p>Supports local and cloud deployment.</p>
+          <p>Version 1.2.0</p>
           <p className="mt-3">
             Scan QR codes on printed labels to update workflow status from the field.
             Admins manage full CRUD and workflow control from this dashboard.

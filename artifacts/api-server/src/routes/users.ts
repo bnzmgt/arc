@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, usersTable, rolesTable, adminAccountsTable, userRolesTable } from "@workspace/db";
-import { requireAdmin } from "../lib/authMiddleware";
+import { requireFullAdmin } from "../lib/authMiddleware";
 
 const router: IRouter = Router();
 
@@ -41,7 +41,7 @@ async function setUserRoles(userId: number, roleIds: number[]) {
   }
 }
 
-router.get("/users", requireAdmin, async (_req, res): Promise<void> => {
+router.get("/users", requireFullAdmin, async (_req, res): Promise<void> => {
   const users = await db
     .select({
       id: usersTable.id,
@@ -81,7 +81,7 @@ router.get("/users", requireAdmin, async (_req, res): Promise<void> => {
   })));
 });
 
-router.post("/users", requireAdmin, async (req, res): Promise<void> => {
+router.post("/users", requireFullAdmin, async (req, res): Promise<void> => {
   const body = req.body as Record<string, unknown>;
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) {
@@ -140,7 +140,7 @@ router.post("/users", requireAdmin, async (req, res): Promise<void> => {
   });
 });
 
-router.put("/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.put("/users/:id", requireFullAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -182,7 +182,7 @@ router.put("/users/:id", requireAdmin, async (req, res): Promise<void> => {
   });
 });
 
-router.post("/users/:id/account", requireAdmin, async (req, res): Promise<void> => {
+router.post("/users/:id/account", requireFullAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -223,7 +223,7 @@ router.post("/users/:id/account", requireAdmin, async (req, res): Promise<void> 
   res.json({ hasAccount: true, accountUsername: acct!.username, accountActive: acct!.active });
 });
 
-router.patch("/users/:id/account/active", requireAdmin, async (req, res): Promise<void> => {
+router.patch("/users/:id/account/active", requireFullAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -237,7 +237,7 @@ router.patch("/users/:id/account/active", requireAdmin, async (req, res): Promis
   res.json({ hasAccount: true, accountActive: active, accountUsername: acct.username });
 });
 
-router.delete("/users/:id/account", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/users/:id/account", requireFullAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -248,7 +248,7 @@ router.delete("/users/:id/account", requireAdmin, async (req, res): Promise<void
   res.json({ hasAccount: false });
 });
 
-router.delete("/users/:id", requireAdmin, async (req, res): Promise<void> => {
+router.delete("/users/:id", requireFullAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 

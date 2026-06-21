@@ -6,30 +6,36 @@ import {
   PackageSearch, 
   Users, 
   Shield, 
-  Settings,
+  Info,
   LogOut,
   ScanLine,
   ClipboardList,
   UserCog,
   ShoppingCart,
+  Bell,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth";
+import { useGetUrgentAlerts } from "@workspace/api-client-react";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 const LEVEL_LABELS: Record<string, { label: string; className: string }> = {
-  superadmin: { label: "Super Admin", className: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
-  admin:      { label: "Admin",       className: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
-  user:       { label: "Staff",       className: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
+  superadmin:  { label: "Super Admin",  className: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
+  admin:       { label: "Admin",        className: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+  staff_admin: { label: "Staff Admin",  className: "bg-teal-500/20 text-teal-300 border-teal-500/30" },
+  user:        { label: "Staff",        className: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
 };
 
 export function Layout({ children }: LayoutProps) {
   const [location, setLocation] = useLocation();
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isFullAdmin } = useAuth();
+  const { data: alertData } = useGetUrgentAlerts();
+
+  const alertCount = (alertData?.overdueBoxes.length ?? 0) + (alertData?.itemDiscrepancies.length ?? 0);
 
   async function handleLogout() {
     await logout();
@@ -37,19 +43,21 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const allNavItems = [
-    { name: "Dashboard",      href: "/dashboard",   icon: LayoutDashboard, minLevel: "user" },
-    { name: "Archive Boxes",  href: "/boxes",        icon: PackageSearch,   minLevel: "user" },
-    { name: "Team Members",   href: "/team",         icon: Users,           minLevel: "admin" },
-    { name: "Role Management",href: "/roles",        icon: Shield,          minLevel: "admin" },
-    { name: "Acquisitions",   href: "/acquisitions",  icon: ShoppingCart,    minLevel: "admin" },
-    { name: "Activity Log",   href: "/activity-log", icon: ClipboardList,   minLevel: "user" },
-    { name: "Accounts",       href: "/admin-accounts",icon: UserCog,        minLevel: "superadmin" },
-    { name: "Settings",       href: "/settings",     icon: Settings,        minLevel: "user" },
+    { name: "Dashboard",        href: "/dashboard",      icon: LayoutDashboard, minLevel: "user" },
+    { name: "Archive Boxes",    href: "/boxes",           icon: PackageSearch,   minLevel: "user" },
+    { name: "Team Members",     href: "/team",            icon: Users,           minLevel: "full_admin" },
+    { name: "Role Management",  href: "/roles",           icon: Shield,          minLevel: "full_admin" },
+    { name: "Collections Cost", href: "/acquisitions",    icon: ShoppingCart,    minLevel: "admin" },
+    { name: "Alerts",           href: "/alerts",          icon: Bell,            minLevel: "user" },
+    { name: "Activity Log",     href: "/activity-log",   icon: ClipboardList,   minLevel: "user" },
+    { name: "Accounts",         href: "/admin-accounts",  icon: UserCog,        minLevel: "superadmin" },
+    { name: "About",            href: "/settings",        icon: Info,            minLevel: "user" },
   ];
 
   const level = user?.accountLevel ?? "user";
   const navItems = allNavItems.filter(item => {
     if (item.minLevel === "superadmin") return isSuperAdmin;
+    if (item.minLevel === "full_admin") return isFullAdmin;
     if (item.minLevel === "admin") return isAdmin;
     return true;
   });
@@ -69,6 +77,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
           {navItems.map((item) => {
             const isActive = location.startsWith(item.href);
+            const isAlerts = item.href === "/alerts";
             return (
               <Link 
                 key={item.href} 
@@ -84,7 +93,12 @@ export function Layout({ children }: LayoutProps) {
                   "w-5 h-5 mr-3 flex-shrink-0 transition-colors",
                   isActive ? "text-orange-500" : "text-slate-400 group-hover:text-slate-300"
                 )} />
-                {item.name}
+                <span className="flex-1">{item.name}</span>
+                {isAlerts && alertCount > 0 && (
+                  <span className="ml-1 min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 leading-none">
+                    {alertCount > 99 ? "99+" : alertCount}
+                  </span>
+                )}
               </Link>
             );
           })}

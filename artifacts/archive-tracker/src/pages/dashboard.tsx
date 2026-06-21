@@ -1,23 +1,44 @@
-import { useGetDashboardStats, useGetWorkflowProgress, useGetRecentActivity } from "@workspace/api-client-react";
+import { useState } from "react";
+import { useGetDashboardStats, useGetWorkflowProgress, useGetRecentActivity, useGetPeriodProgress, useGetUrgentAlerts } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Archive, TrendingUp, CheckCircle2, RotateCcw, PackageOpen, Clock } from "lucide-react";
+import { Archive, TrendingUp, CheckCircle2, RotateCcw, PackageOpen, Clock, PackagePlus, ListChecks, Bell, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { STEP_LABELS } from "@/lib/steps";
+import { useLocation } from "wouter";
+
+type Period = "week" | "month" | "year";
+const PERIOD_LABELS: Record<Period, string> = { week: "This Week", month: "This Month", year: "This Year" };
 
 export default function DashboardPage() {
+  const [, navigate] = useLocation();
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: progress, isLoading: progressLoading } = useGetWorkflowProgress();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
+  const { data: alerts, isLoading: alertsLoading } = useGetUrgentAlerts();
+
+  const [period, setPeriod] = useState<Period>("week");
+  const { data: periodStats, isLoading: periodLoading } = useGetPeriodProgress({ period });
 
   const statCards = [
     { label: "Total Boxes", value: stats?.totalBoxes ?? 0, icon: Archive, color: "text-blue-600" },
-    { label: "In Progress", value: stats?.activeBoxes ?? 0, icon: TrendingUp, color: "text-amber-600" },
+    { label: "Active Processing", value: stats?.activeBoxes ?? 0, icon: TrendingUp, color: "text-amber-600" },
     { label: "Completed", value: stats?.completedBoxes ?? 0, icon: CheckCircle2, color: "text-emerald-600" },
     { label: "Returned", value: stats?.returnedBoxes ?? 0, icon: RotateCcw, color: "text-violet-600" },
     { label: "Total Items", value: stats?.totalItems ?? 0, icon: PackageOpen, color: "text-rose-600" },
-    { label: "Active Processing", value: stats?.boxesInProgress ?? 0, icon: Clock, color: "text-orange-600" },
+    { label: "In Progress", value: stats?.boxesInProgress ?? 0, icon: Clock, color: "text-orange-600" },
   ];
+
+  const periodCards = [
+    { label: "Items Received", value: periodStats?.received ?? 0, icon: PackagePlus, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/40" },
+    { label: "Items Completed", value: periodStats?.completed ?? 0, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/40" },
+    { label: "Items Returned", value: periodStats?.returned ?? 0, icon: RotateCcw, color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-950/40" },
+    { label: "Steps Completed", value: periodStats?.stepsCompleted ?? 0, icon: ListChecks, color: "text-orange-600", bg: "bg-orange-50 dark:bg-orange-950/40" },
+  ];
+
+  const overdueCount = alerts?.overdueBoxes.length ?? 0;
+  const discrepancyCount = alerts?.itemDiscrepancies.length ?? 0;
+  const totalAlerts = overdueCount + discrepancyCount;
 
   return (
     <div className="space-y-6">
@@ -25,6 +46,32 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Archive operations at a glance</p>
       </div>
+
+      {/* Alerts summary banner */}
+      {!alertsLoading && (
+        <button
+          onClick={() => navigate("/alerts")}
+          className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg border text-sm transition-colors ${
+            totalAlerts > 0
+              ? "border-red-200 bg-red-50 text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Bell size={15} className="flex-shrink-0" />
+            {totalAlerts > 0 ? (
+              <span className="font-medium">
+                {totalAlerts} active {totalAlerts === 1 ? "alert" : "alerts"}
+                {overdueCount > 0 && ` — ${overdueCount} overdue`}
+                {discrepancyCount > 0 && ` — ${discrepancyCount} count ${discrepancyCount === 1 ? "mismatch" : "mismatches"}`}
+              </span>
+            ) : (
+              <span className="font-medium">No urgent alerts — all boxes are on track</span>
+            )}
+          </div>
+          <ChevronRight size={14} className="flex-shrink-0 opacity-60" />
+        </button>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -48,6 +95,48 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Period Progress */}
+      <Card className="border border-card-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base font-semibold">Progress Tracking</CardTitle>
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              {(["week", "month", "year"] as Period[]).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    period === p
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">{PERIOD_LABELS[period]}</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {periodCards.map(({ label, value, icon: Icon, color, bg }) => (
+              <div key={label} className={`rounded-lg p-4 ${bg}`}>
+                <div className={`${color} mb-2`}>
+                  <Icon size={18} />
+                </div>
+                {periodLoading ? (
+                  <div className="h-7 w-10 bg-muted/60 rounded animate-pulse mt-1" />
+                ) : (
+                  <p className="text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5 font-medium">{label}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Workflow Progress */}

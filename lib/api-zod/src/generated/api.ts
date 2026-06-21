@@ -245,9 +245,12 @@ export const GetBoxWorkflowResponseItem = zod.object({
   status: zod.enum(["pending", "in_progress", "completed", "skipped"]),
   assignedUserId: zod.number().nullish(),
   assignedUserName: zod.string().nullish(),
+  performedByAdminName: zod.string().nullish(),
   startedAt: zod.coerce.date().nullish(),
   completedAt: zod.coerce.date().nullish(),
   notes: zod.string().nullish(),
+  itemCount: zod.number().nullish(),
+  itemCountSecondary: zod.number().nullish(),
   updatedAt: zod.coerce.date(),
 });
 export const GetBoxWorkflowResponse = zod.array(GetBoxWorkflowResponseItem);
@@ -271,6 +274,8 @@ export const UpdateBoxWorkflowBody = zod.object({
   status: zod.enum(["pending", "in_progress", "completed", "skipped"]),
   assignedUserId: zod.number().nullish(),
   notes: zod.string().nullish(),
+  itemCount: zod.number().nullish(),
+  itemCountSecondary: zod.number().nullish(),
 });
 
 export const UpdateBoxWorkflowResponse = zod.object({
@@ -288,9 +293,12 @@ export const UpdateBoxWorkflowResponse = zod.object({
   status: zod.enum(["pending", "in_progress", "completed", "skipped"]),
   assignedUserId: zod.number().nullish(),
   assignedUserName: zod.string().nullish(),
+  performedByAdminName: zod.string().nullish(),
   startedAt: zod.coerce.date().nullish(),
   completedAt: zod.coerce.date().nullish(),
   notes: zod.string().nullish(),
+  itemCount: zod.number().nullish(),
+  itemCountSecondary: zod.number().nullish(),
   updatedAt: zod.coerce.date(),
 });
 
@@ -330,9 +338,12 @@ export const GetBoxTicketResponse = zod.object({
       status: zod.enum(["pending", "in_progress", "completed", "skipped"]),
       assignedUserId: zod.number().nullish(),
       assignedUserName: zod.string().nullish(),
+      performedByAdminName: zod.string().nullish(),
       startedAt: zod.coerce.date().nullish(),
       completedAt: zod.coerce.date().nullish(),
       notes: zod.string().nullish(),
+      itemCount: zod.number().nullish(),
+      itemCountSecondary: zod.number().nullish(),
       updatedAt: zod.coerce.date(),
     }),
   ),
@@ -398,9 +409,12 @@ export const GetByTicketCodeResponse = zod.object({
       status: zod.enum(["pending", "in_progress", "completed", "skipped"]),
       assignedUserId: zod.number().nullish(),
       assignedUserName: zod.string().nullish(),
+      performedByAdminName: zod.string().nullish(),
       startedAt: zod.coerce.date().nullish(),
       completedAt: zod.coerce.date().nullish(),
       notes: zod.string().nullish(),
+      itemCount: zod.number().nullish(),
+      itemCountSecondary: zod.number().nullish(),
       updatedAt: zod.coerce.date(),
     }),
   ),
@@ -582,6 +596,51 @@ export const GetWorkflowProgressResponseItem = zod.object({
 export const GetWorkflowProgressResponse = zod.array(
   GetWorkflowProgressResponseItem,
 );
+
+/**
+ * @summary Get overdue boxes and item count discrepancies
+ */
+export const GetUrgentAlertsResponse = zod.object({
+  overdueBoxes: zod.array(
+    zod.object({
+      id: zod.number(),
+      boxCode: zod.string(),
+      clientName: zod.string(),
+      deadline: zod.coerce.date(),
+      status: zod.string(),
+      currentStep: zod.string().nullish(),
+      priority: zod.string().nullish(),
+      collectionsOwner: zod.string().nullish(),
+    }),
+  ),
+  itemDiscrepancies: zod.array(
+    zod.object({
+      id: zod.number(),
+      boxCode: zod.string(),
+      clientName: zod.string(),
+      totalItems: zod.number(),
+      stepName: zod.string(),
+      stepItemCount: zod.number(),
+      status: zod.string(),
+      currentStep: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get progress stats for a time period (week, month, year)
+ */
+export const GetPeriodProgressQueryParams = zod.object({
+  period: zod.enum(["week", "month", "year"]).optional(),
+});
+
+export const GetPeriodProgressResponse = zod.object({
+  period: zod.string(),
+  received: zod.number(),
+  completed: zod.number(),
+  returned: zod.number(),
+  stepsCompleted: zod.number(),
+});
 
 /**
  * @summary Get recent activity feed

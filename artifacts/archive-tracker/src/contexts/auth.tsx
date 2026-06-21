@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
-export type AccountLevel = "superadmin" | "admin" | "user";
+export type AccountLevel = "superadmin" | "admin" | "staff_admin" | "user";
 
 export interface AdminUser {
   id: number;
@@ -12,10 +12,11 @@ export interface AdminUser {
 interface AuthState {
   user: AdminUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, honeypot?: string) => Promise<void>;
   logout: () => Promise<void>;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  isFullAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -34,12 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function login(username: string, password: string) {
+  async function login(username: string, password: string, honeypot?: string) {
     const r = await fetch(`${BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, ...(honeypot ? { website: honeypot } : {}) }),
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
@@ -58,10 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isSuperAdmin = user?.accountLevel === "superadmin";
-  const isAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin";
+  const isAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin" || user?.accountLevel === "staff_admin";
+  const isFullAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin";
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isSuperAdmin, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isSuperAdmin, isAdmin, isFullAdmin }}>
       {children}
     </AuthContext.Provider>
   );

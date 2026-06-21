@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { BoxStatusBadge, WorkflowStatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -27,11 +28,18 @@ import {
   LogIn,
   LogOut,
   ExternalLink,
+  ShieldCheck,
 } from "lucide-react";
 
 import { format } from "date-fns";
 import { STEP_LABELS } from "@/lib/steps";
- 
+
+const SPLIT_STEP_CONFIG: Record<string, { primary: string; secondary: string }> = {
+  cataloging: { primary: "Cataloged",  secondary: "Double / Not Related" },
+  scanning:   { primary: "Scanned",    secondary: "Not for Scan" },
+  qc:         { primary: "Scanned",    secondary: "Not Scanned" },
+};
+
 interface ScanUser {
   id: number;
   name: string;
@@ -50,8 +58,13 @@ interface StepUpdateFormProps {
 }
 
 function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCancel }: StepUpdateFormProps) {
+  const splitConfig = SPLIT_STEP_CONFIG[stepName] ?? null;
   const [status, setStatus] = useState("in_progress");
   const [notes, setNotes] = useState("");
+  const [itemCount, setItemCount] = useState("");
+  const [itemCountSecondary, setItemCountSecondary] = useState("");
+  const [itemCountError, setItemCountError] = useState("");
+  const [itemCountSecondaryError, setItemCountSecondaryError] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -88,6 +101,63 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
           </SelectContent>
         </Select>
       </div>
+      {splitConfig ? (
+        <div className="space-y-2">
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              {splitConfig.primary}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              value={itemCount}
+              onChange={(e) => { setItemCount(e.target.value); setItemCountError(""); }}
+              placeholder="0"
+              className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`}
+            />
+            {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              {splitConfig.secondary}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              value={itemCountSecondary}
+              onChange={(e) => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
+              placeholder="0"
+              className={`mt-1 h-9 text-sm ${itemCountSecondaryError ? "border-destructive" : ""}`}
+            />
+            {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+          </div>
+          {itemCount !== "" && itemCountSecondary !== "" && !isNaN(parseInt(itemCount)) && !isNaN(parseInt(itemCountSecondary)) && (
+            <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md">
+              Total: <span className="font-semibold text-foreground">{parseInt(itemCount) + parseInt(itemCountSecondary)}</span> items
+            </p>
+          )}
+        </div>
+      ) : (
+        <div>
+          <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            Item Count
+            <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            type="number"
+            min={0}
+            value={itemCount}
+            onChange={(e) => { setItemCount(e.target.value); setItemCountError(""); }}
+            placeholder="Enter number of items"
+            className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`}
+          />
+          {itemCountError && (
+            <p className="text-xs text-destructive mt-1">{itemCountError}</p>
+          )}
+        </div>
+      )}
       <div>
         <Label className="text-xs font-medium text-muted-foreground">Notes (optional)</Label>
         <Textarea
@@ -103,7 +173,29 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
           className="flex-1 h-9"
           size="sm"
           disabled={mutation.isPending}
-          onClick={() =>
+          onClick={() => {
+            if (!itemCount || itemCount.trim() === "") {
+              setItemCountError(splitConfig ? `${splitConfig.primary} count is required` : "Item count is required");
+              return;
+            }
+            const count = parseInt(itemCount, 10);
+            if (isNaN(count) || count < 0) {
+              setItemCountError("Enter a valid number (0 or above)");
+              return;
+            }
+            let countSecondary: number | undefined;
+            if (splitConfig) {
+              if (!itemCountSecondary || itemCountSecondary.trim() === "") {
+                setItemCountSecondaryError(`${splitConfig.secondary} count is required`);
+                return;
+              }
+              const s = parseInt(itemCountSecondary, 10);
+              if (isNaN(s) || s < 0) {
+                setItemCountSecondaryError("Enter a valid number (0 or above)");
+                return;
+              }
+              countSecondary = s;
+            }
             mutation.mutate({
               id: boxId,
               data: {
@@ -111,9 +203,11 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
                 status: status as "pending" | "in_progress" | "completed" | "skipped",
                 assignedUserId: userId ?? undefined,
                 notes: notes.trim() || null,
+                itemCount: count,
+                ...(countSecondary !== undefined ? { itemCountSecondary: countSecondary } : {}),
               },
-            })
-          }
+            });
+          }}
           data-testid={`button-submit-${stepName}`}
         >
           {mutation.isPending ? "Saving…" : "Save Update"}
@@ -177,16 +271,19 @@ export default function ScanPage() {
   const identitySteps = identityRows
     .map((u) => u.workflowStep)
     .filter((s): s is string => !!s);
-  const isAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin";
+  const isAdmin = user?.accountLevel === "superadmin" || user?.accountLevel === "admin" || user?.accountLevel === "staff_admin";
 
   return (
     <div className="min-h-screen bg-background">
       <div className="bg-primary text-primary-foreground px-4 pt-5 pb-4">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center gap-2 mb-1 opacity-75">
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 mb-1 opacity-75 hover:opacity-100 transition-opacity"
+          >
             <Archive size={15} />
             <span className="text-xs font-medium">Arciflow</span>
-          </div>
+          </a>
           <h1 className="text-2xl font-bold font-mono leading-tight">{box.boxCode}</h1>
           <p className="text-sm opacity-75 mt-0.5">{box.clientName}</p>
         </div>
@@ -356,11 +453,39 @@ export default function ScanPage() {
                           {step.assignedUserName}
                         </p>
                       )}
-                      {step.completedAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Done {format(new Date(step.completedAt), "MMM d, HH:mm")}
+                      {step.performedByAdminName && (
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <ShieldCheck size={11} /> {step.performedByAdminName}
                         </p>
                       )}
+                      {(step.startedAt || step.completedAt) && (
+                        <p className="text-xs text-muted-foreground">
+                          {step.startedAt && `Started: ${format(new Date(step.startedAt), "MMM d, HH:mm")}`}
+                          {step.startedAt && step.completedAt && ` — `}
+                          {step.completedAt && `Completed: ${format(new Date(step.completedAt), "MMM d, HH:mm")}`}
+                        </p>
+                      )}
+                      {step.itemCount != null && (() => {
+                        const sc = SPLIT_STEP_CONFIG[step.stepName];
+                        if (sc) {
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">{step.itemCount}</span> {sc.primary}
+                              {step.itemCountSecondary != null && (
+                                <> + <span className="font-medium text-foreground">{step.itemCountSecondary}</span> {sc.secondary}</>
+                              )}
+                              {step.itemCountSecondary != null && (
+                                <> = <span className="font-semibold text-foreground">{step.itemCount + step.itemCountSecondary}</span> total</>
+                              )}
+                            </p>
+                          );
+                        }
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-medium text-foreground">{step.itemCount}</span> items recorded
+                          </p>
+                        );
+                      })()}
                       {step.notes && (
                         <p className="text-xs text-muted-foreground italic mt-1">{step.notes}</p>
                       )}

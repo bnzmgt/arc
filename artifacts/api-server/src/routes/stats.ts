@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, count, sum, desc, and, sql } from "drizzle-orm";
+import { eq, count, sum, desc, and, gte, lt, isNotNull, isNull, not, inArray, ne, sql } from "drizzle-orm";
 import { db, boxesTable, workflowStepsTable, activityLogTable, usersTable, adminAccountsTable } from "@workspace/db";
 import { requireAdmin } from "../lib/authMiddleware";
 
@@ -63,6 +63,107 @@ router.get("/stats/workflow-progress", async (_req, res): Promise<void> => {
   });
 
   res.json(progress);
+});
+
+router.get("/stats/urgent-alerts", async (_req, res): Promise<void> => {
+  const overdueBoxes = await db
+    .select({
+      id: boxesTable.id,
+      boxCode: boxesTable.boxCode,
+      clientName: boxesTable.clientName,
+      deadline: boxesTable.deadline,
+      status: boxesTable.status,
+      currentStep: boxesTable.currentStep,
+      priority: boxesTable.priority,
+      collectionsOwner: boxesTable.collectionsOwner,
+    })
+    .from(boxesTable)
+    .where(
+      and(
+        isNotNull(boxesTable.deadline),
+        lt(boxesTable.deadline, sql`NOW()`),
+        not(inArray(boxesTable.status, ["completed", "returned"]))
+      )
+    )
+    .orderBy(boxesTable.deadline)
+    .limit(20);
+
+  const discrepancyRows = await db
+    .select({
+      id: boxesTable.id,
+      boxCode: boxesTable.boxCode,
+      clientName: boxesTable.clientName,
+      totalItems: boxesTable.totalItems,
+      stepName: workflowStepsTable.stepName,
+      stepItemCount: workflowStepsTable.itemCount,
+      stepItemCountSecondary: workflowStepsTable.itemCountSecondary,
+      status: boxesTable.status,
+      currentStep: boxesTable.currentStep,
+    })
+    .from(workflowStepsTable)
+    .innerJoin(boxesTable, eq(workflowStepsTable.boxId, boxesTable.id))
+    .where(
+      and(
+        isNotNull(workflowStepsTable.itemCount),
+        isNotNull(boxesTable.totalItems),
+        sql`${workflowStepsTable.itemCount} + COALESCE(${workflowStepsTable.itemCountSecondary}, 0) <> ${boxesTable.totalItems}`
+      )
+    )
+    .orderBy(boxesTable.boxCode)
+    .limit(30);
+
+  res.json({
+    overdueBoxes,
+    itemDiscrepancies: discrepancyRows.map(r => ({
+      id: r.id,
+      boxCode: r.boxCode,
+      clientName: r.clientName,
+      totalItems: Number(r.totalItems),
+      stepName: r.stepName,
+      stepItemCount: Number(r.stepItemCount ?? 0) + Number(r.stepItemCountSecondary ?? 0),
+      status: r.status,
+      currentStep: r.currentStep,
+    })),
+  });
+});
+
+router.get("/stats/period-progress", async (req, res): Promise<void> => {
+  const period = (req.query.period as string) ?? "week";
+  const intervals: Record<string, string> = {
+    week: "7 days",
+    month: "30 days",
+    year: "365 days",
+  };
+  const interval = intervals[period] ?? "7 days";
+  const since = sql`NOW() - INTERVAL ${sql.raw(`'${interval}'`)}`;
+
+  const [receivedRow] = await db
+    .select({ cnt: count(boxesTable.id) })
+    .from(boxesTable)
+    .where(gte(boxesTable.createdAt, sql`${since}`));
+
+  const [completedRow] = await db
+    .select({ cnt: count(boxesTable.id) })
+    .from(boxesTable)
+    .where(and(eq(boxesTable.status, "completed"), gte(boxesTable.updatedAt, sql`${since}`)));
+
+  const [returnedRow] = await db
+    .select({ cnt: count(boxesTable.id) })
+    .from(boxesTable)
+    .where(and(eq(boxesTable.status, "returned"), gte(boxesTable.updatedAt, sql`${since}`)));
+
+  const [stepsRow] = await db
+    .select({ cnt: count(workflowStepsTable.id) })
+    .from(workflowStepsTable)
+    .where(and(eq(workflowStepsTable.status, "completed"), gte(workflowStepsTable.updatedAt, sql`${since}`)));
+
+  res.json({
+    period,
+    received: Number(receivedRow?.cnt ?? 0),
+    completed: Number(completedRow?.cnt ?? 0),
+    returned: Number(returnedRow?.cnt ?? 0),
+    stepsCompleted: Number(stepsRow?.cnt ?? 0),
+  });
 });
 
 router.get("/stats/recent-activity", async (_req, res): Promise<void> => {

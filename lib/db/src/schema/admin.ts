@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./boxes";
 
-export const ACCOUNT_LEVELS = ["superadmin", "admin", "user"] as const;
+export const ACCOUNT_LEVELS = ["superadmin", "admin", "staff_admin", "user"] as const;
 export type AccountLevel = typeof ACCOUNT_LEVELS[number];
 
 export const adminAccountsTable = pgTable("admin_accounts", {

@@ -392,6 +392,39 @@ paths:
                 items:
                   $ref: "#/components/schemas/WorkflowProgressItem"
 
+  /stats/urgent-alerts:
+    get:
+      operationId: getUrgentAlerts
+      tags: [stats]
+      summary: Get overdue boxes and item count discrepancies
+      responses:
+        "200":
+          description: Urgent alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrgentAlerts"
+
+  /stats/period-progress:
+    get:
+      operationId: getPeriodProgress
+      tags: [stats]
+      summary: Get progress stats for a time period (week, month, year)
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [week, month, year]
+      responses:
+        "200":
+          description: Period progress stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodStats"
+
   /stats/recent-activity:
     get:
       operationId: getRecentActivity
@@ -627,6 +660,9 @@ components:
         assignedUserName:
           type: string
           nullable: true
+        performedByAdminName:
+          type: string
+          nullable: true
         startedAt:
           type: string
           format: date-time
@@ -637,6 +673,12 @@ components:
           nullable: true
         notes:
           type: string
+          nullable: true
+        itemCount:
+          type: integer
+          nullable: true
+        itemCountSecondary:
+          type: integer
           nullable: true
         updatedAt:
           type: string
@@ -663,6 +705,12 @@ components:
           nullable: true
         notes:
           type: string
+          nullable: true
+        itemCount:
+          type: integer
+          nullable: true
+        itemCountSecondary:
+          type: integer
           nullable: true
       required:
         - stepName
@@ -862,6 +910,100 @@ components:
         - returnedBoxes
         - totalItems
         - boxesInProgress
+
+    OverdueBoxItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        boxCode:
+          type: string
+        clientName:
+          type: string
+        deadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+        currentStep:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        collectionsOwner:
+          type: string
+          nullable: true
+      required:
+        - id
+        - boxCode
+        - clientName
+        - deadline
+        - status
+
+    ItemDiscrepancyItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        boxCode:
+          type: string
+        clientName:
+          type: string
+        totalItems:
+          type: integer
+        stepName:
+          type: string
+        stepItemCount:
+          type: integer
+        status:
+          type: string
+        currentStep:
+          type: string
+          nullable: true
+      required:
+        - id
+        - boxCode
+        - clientName
+        - totalItems
+        - stepName
+        - stepItemCount
+        - status
+
+    UrgentAlerts:
+      type: object
+      properties:
+        overdueBoxes:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverdueBoxItem"
+        itemDiscrepancies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemDiscrepancyItem"
+      required:
+        - overdueBoxes
+        - itemDiscrepancies
+
+    PeriodStats:
+      type: object
+      properties:
+        period:
+          type: string
+        received:
+          type: integer
+        completed:
+          type: integer
+        returned:
+          type: integer
+        stepsCompleted:
+          type: integer
+      required:
+        - period
+        - received
+        - completed
+        - returned
+        - stepsCompleted
 
     WorkflowProgressItem:
       type: object

@@ -218,9 +218,12 @@ export interface WorkflowStep {
   status: WorkflowStepStatus;
   assignedUserId?: number | null;
   assignedUserName?: string | null;
+  performedByAdminName?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
   notes?: string | null;
+  itemCount?: number | null;
+  itemCountSecondary?: number | null;
   updatedAt: string;
 }
 
@@ -251,6 +254,8 @@ export interface UpdateWorkflowBody {
   status: UpdateWorkflowBodyStatus;
   assignedUserId?: number | null;
   notes?: string | null;
+  itemCount?: number | null;
+  itemCountSecondary?: number | null;
 }
 
 export interface Ticket {
@@ -367,6 +372,41 @@ export interface DashboardStats {
   boxesInProgress: number;
 }
 
+export interface OverdueBoxItem {
+  id: number;
+  boxCode: string;
+  clientName: string;
+  deadline: string;
+  status: string;
+  currentStep?: string | null;
+  priority?: string | null;
+  collectionsOwner?: string | null;
+}
+
+export interface ItemDiscrepancyItem {
+  id: number;
+  boxCode: string;
+  clientName: string;
+  totalItems: number;
+  stepName: string;
+  stepItemCount: number;
+  status: string;
+  currentStep?: string | null;
+}
+
+export interface UrgentAlerts {
+  overdueBoxes: OverdueBoxItem[];
+  itemDiscrepancies: ItemDiscrepancyItem[];
+}
+
+export interface PeriodStats {
+  period: string;
+  received: number;
+  completed: number;
+  returned: number;
+  stepsCompleted: number;
+}
+
 export interface WorkflowProgressItem {
   stepName: string;
   total: number;
@@ -391,3 +431,16 @@ export type ListBoxesParams = {
   status?: string;
   location?: string;
 };
+
+export type GetPeriodProgressParams = {
+  period?: GetPeriodProgressPeriod;
+};
+
+export type GetPeriodProgressPeriod =
+  (typeof GetPeriodProgressPeriod)[keyof typeof GetPeriodProgressPeriod];
+
+export const GetPeriodProgressPeriod = {
+  week: "week",
+  month: "month",
+  year: "year",
+} as const;

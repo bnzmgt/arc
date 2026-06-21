@@ -1,10 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useState, useMemo, useRef, type FormEvent } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Archive, Lock, User, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Archive, Lock, User, Eye, EyeOff, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+function generatePuzzle() {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  const ops = ["+", "-", "+", "+", "-"] as const;
+  const op = ops[Math.floor(Math.random() * ops.length)];
+  const answer = op === "+" ? a + b : a - b;
+  return { question: `What is ${a} ${op} ${b}?`, answer };
+}
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -18,15 +27,39 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [puzzle, setPuzzle] = useState(() => generatePuzzle());
+  const [captchaInput, setCaptchaInput] = useState("");
+  const [captchaError, setCaptchaError] = useState(false);
+
+  const honeypotRef = useRef<HTMLInputElement>(null);
+
+  const captchaValid = useMemo(
+    () => parseInt(captchaInput.trim(), 10) === puzzle.answer,
+    [captchaInput, puzzle.answer]
+  );
+
+  function refreshPuzzle() {
+    setPuzzle(generatePuzzle());
+    setCaptchaInput("");
+    setCaptchaError(false);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!captchaValid) {
+      setCaptchaError(true);
+      return;
+    }
+    setCaptchaError(false);
     setError(null);
     setLoading(true);
     try {
-      await login(username.trim(), password);
+      const honeypotValue = honeypotRef.current?.value ?? "";
+      await login(username.trim(), password, honeypotValue);
       setLocation(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+      refreshPuzzle();
     } finally {
       setLoading(false);
     }
@@ -55,6 +88,23 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Honeypot — visually off-screen; real users never see or fill this */}
+            <div
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", top: "-9999px", width: "1px", height: "1px", overflow: "hidden", opacity: 0 }}
+            >
+              <label htmlFor="website">Website</label>
+              <input
+                ref={honeypotRef}
+                id="website"
+                name="website"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                defaultValue=""
+              />
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="username" className="text-sm font-medium">
                 Username
@@ -102,10 +152,43 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Math CAPTCHA */}
+            <div className="space-y-1.5">
+              <Label htmlFor="captcha" className="text-sm font-medium">
+                Security check
+              </Label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                <span className="text-sm font-mono font-semibold text-slate-700 flex-1">
+                  {puzzle.question}
+                </span>
+                <button
+                  type="button"
+                  onClick={refreshPuzzle}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label="New question"
+                  tabIndex={-1}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <Input
+                id="captcha"
+                type="number"
+                placeholder="Enter your answer"
+                value={captchaInput}
+                onChange={(e) => { setCaptchaInput(e.target.value); setCaptchaError(false); }}
+                className={captchaError ? "border-red-400 focus-visible:ring-red-400" : ""}
+                required
+              />
+              {captchaError && (
+                <p className="text-xs text-red-600">Incorrect answer — please try again</p>
+              )}
+            </div>
+
             <Button
               type="submit"
               className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
-              disabled={loading || !username || !password}
+              disabled={loading || !username || !password || !captchaInput}
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -119,9 +202,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
-          Arciflow Admin Panel
-        </p>
       </div>
     </div>
   );

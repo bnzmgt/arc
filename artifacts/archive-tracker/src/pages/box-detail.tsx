@@ -24,7 +24,7 @@ import { BoxStatusBadge, WorkflowStatusBadge } from "@/components/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Ticket, CheckCircle2, Clock, Circle, ChevronRight,
-  Calendar, MapPin, Package, User, FileText, QrCode, AlertTriangle, Pencil, ExternalLink, Lock,
+  Calendar, MapPin, Package, User, FileText, QrCode, AlertTriangle, Pencil, ExternalLink, Lock, ShieldCheck,
 } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { STEP_LABELS } from "@/lib/steps";
@@ -44,6 +44,12 @@ function getDeadlineStatus(deadline: Date | string | null | undefined, boxStatus
 
 const STEPS = ["cleaning", "cataloging", "scanning", "qc", "repacking", "returning"] as const;
 
+const SPLIT_STEP_CONFIG: Record<string, { primary: string; secondary: string }> = {
+  cataloging: { primary: "Cataloged",  secondary: "Double / Not Related" },
+  scanning:   { primary: "Scanned",    secondary: "Not for Scan" },
+  qc:         { primary: "Scanned",    secondary: "Not Scanned" },
+};
+
 function WorkflowStepCard({
   step,
   boxId,
@@ -51,7 +57,7 @@ function WorkflowStepCard({
   onUpdated,
   staffIdentity,
 }: {
-  step: { id: number; stepName: string; stepOrder: number; status: string; assignedUserId?: number | null; assignedUserName?: string | null; startedAt?: string | null; completedAt?: string | null; notes?: string | null; updatedAt: string };
+  step: { id: number; stepName: string; stepOrder: number; status: string; assignedUserId?: number | null; assignedUserName?: string | null; performedByAdminName?: string | null; startedAt?: string | null; completedAt?: string | null; notes?: string | null; itemCount?: number | null; itemCountSecondary?: number | null; updatedAt: string };
   boxId: number;
   users: Array<{ id: number; name: string }>;
   onUpdated: () => void;
@@ -60,11 +66,19 @@ function WorkflowStepCard({
   const isStaffView = !!staffIdentity;
   const assignedSteps = staffIdentity?.workflowSteps ?? (staffIdentity?.workflowStep ? [staffIdentity.workflowStep] : []);
   const canActOnThisStep = !isStaffView || assignedSteps.includes(step.stepName);
+  const splitConfig = SPLIT_STEP_CONFIG[step.stepName] ?? null;
+
+  const { user: adminUser } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState(step.status);
-  const [selectedUser, setSelectedUser] = useState(step.assignedUserId?.toString() ?? "none");
+  const [selectedUser, setSelectedUser] = useState(step.assignedUserId?.toString() ?? "");
+  const [selectedUserError, setSelectedUserError] = useState("");
   const [notes, setNotes] = useState(step.notes ?? "");
+  const [itemCount, setItemCount] = useState(step.itemCount?.toString() ?? "");
+  const [itemCountSecondary, setItemCountSecondary] = useState(step.itemCountSecondary?.toString() ?? "");
+  const [itemCountError, setItemCountError] = useState("");
+  const [itemCountSecondaryError, setItemCountSecondaryError] = useState("");
   const { toast } = useToast();
 
   const updateMutation = useUpdateBoxWorkflow({
@@ -94,7 +108,7 @@ function WorkflowStepCard({
 
   const resolvedAssignedUserId = isStaffView
     ? staffIdentity.userId
-    : (selectedUser !== "none" ? parseInt(selectedUser, 10) : null);
+    : (selectedUser !== "" && selectedUser !== "__admin__" ? parseInt(selectedUser, 10) : null);
 
   return (
     <div className={`flex gap-4 p-4 rounded-lg border ${step.status === "completed" ? "border-emerald-200 bg-emerald-50/30 dark:border-emerald-900 dark:bg-emerald-950/20" : step.status === "in_progress" ? "border-amber-200 bg-amber-50/30 dark:border-amber-900 dark:bg-amber-950/20" : "border-border bg-muted/20"}`}>
@@ -108,12 +122,35 @@ function WorkflowStepCard({
               <User size={11} /> {step.assignedUserName}
             </span>
           )}
+          {step.performedByAdminName && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <ShieldCheck size={11} /> {step.performedByAdminName}
+            </span>
+          )}
         </div>
-        {step.startedAt && (
+        {(step.startedAt || step.completedAt) && (
           <p className="text-xs text-muted-foreground mt-1">
-            Started: {format(new Date(step.startedAt), "MMM d, yyyy HH:mm")}
-            {step.completedAt && ` — Completed: ${format(new Date(step.completedAt), "MMM d, yyyy HH:mm")}`}
+            {step.startedAt && `Started: ${format(new Date(step.startedAt), "MMM d, yyyy HH:mm")}`}
+            {step.startedAt && step.completedAt && ` — `}
+            {step.completedAt && `Completed: ${format(new Date(step.completedAt), "MMM d, yyyy HH:mm")}`}
           </p>
+        )}
+        {step.itemCount != null && (
+          splitConfig ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="font-medium text-foreground">{step.itemCount}</span> {splitConfig.primary}
+              {step.itemCountSecondary != null && (
+                <> + <span className="font-medium text-foreground">{step.itemCountSecondary}</span> {splitConfig.secondary}</>
+              )}
+              {step.itemCountSecondary != null && (
+                <> = <span className="font-semibold text-foreground">{step.itemCount + step.itemCountSecondary}</span> total</>
+              )}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <span className="font-medium text-foreground">{step.itemCount}</span> items recorded
+            </p>
+          )
         )}
         {step.notes && <p className="text-sm text-muted-foreground mt-1 italic">{step.notes}</p>}
       </div>
@@ -156,18 +193,88 @@ function WorkflowStepCard({
               {/* Assign To: only shown for admins; staff are auto-assigned to themselves */}
               {!isStaffView && (
                 <div>
-                  <Label>Assign To</Label>
-                  <Select value={selectedUser} onValueChange={setSelectedUser}>
-                    <SelectTrigger className="mt-1">
+                  <Label className="flex items-center gap-1">
+                    Assign To
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={selectedUser} onValueChange={v => { setSelectedUser(v); setSelectedUserError(""); }}>
+                    <SelectTrigger className={`mt-1 ${selectedUserError ? "border-destructive" : ""}`}>
                       <SelectValue placeholder="Select team member" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Unassigned</SelectItem>
+                      {adminUser && (
+                        <SelectItem value="__admin__">
+                          <span className="flex items-center gap-1.5">
+                            <ShieldCheck size={12} className="text-primary" />
+                            {adminUser.displayName} (Admin)
+                          </span>
+                        </SelectItem>
+                      )}
                       {users.map(u => (
                         <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectedUserError && (
+                    <p className="text-xs text-destructive mt-1">{selectedUserError}</p>
+                  )}
+                </div>
+              )}
+              {splitConfig ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      {splitConfig.primary}
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={itemCount}
+                      onChange={e => { setItemCount(e.target.value); setItemCountError(""); }}
+                      placeholder="0"
+                      className={`mt-1 ${itemCountError ? "border-destructive" : ""}`}
+                    />
+                    {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      {splitConfig.secondary}
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={itemCountSecondary}
+                      onChange={e => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
+                      placeholder="0"
+                      className={`mt-1 ${itemCountSecondaryError ? "border-destructive" : ""}`}
+                    />
+                    {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+                  </div>
+                  {itemCount !== "" && itemCountSecondary !== "" && !isNaN(parseInt(itemCount)) && !isNaN(parseInt(itemCountSecondary)) && (
+                    <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md">
+                      Total: <span className="font-semibold text-foreground">{parseInt(itemCount) + parseInt(itemCountSecondary)}</span> items
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <Label className="flex items-center gap-1">
+                    Item Count
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={itemCount}
+                    onChange={e => { setItemCount(e.target.value); setItemCountError(""); }}
+                    placeholder="Enter number of items"
+                    className={`mt-1 ${itemCountError ? "border-destructive" : ""}`}
+                  />
+                  {itemCountError && (
+                    <p className="text-xs text-destructive mt-1">{itemCountError}</p>
+                  )}
                 </div>
               )}
               <div>
@@ -183,7 +290,33 @@ function WorkflowStepCard({
               <Button
                 className="w-full"
                 disabled={updateMutation.isPending}
-                onClick={() =>
+                onClick={() => {
+                  if (!isStaffView && !selectedUser) {
+                    setSelectedUserError("Please select a team member");
+                    return;
+                  }
+                  if (!itemCount || itemCount.trim() === "") {
+                    setItemCountError(splitConfig ? `${splitConfig.primary} count is required` : "Item count is required");
+                    return;
+                  }
+                  const count = parseInt(itemCount, 10);
+                  if (isNaN(count) || count < 0) {
+                    setItemCountError("Enter a valid number (0 or above)");
+                    return;
+                  }
+                  let countSecondary: number | undefined;
+                  if (splitConfig) {
+                    if (!itemCountSecondary || itemCountSecondary.trim() === "") {
+                      setItemCountSecondaryError(`${splitConfig.secondary} count is required`);
+                      return;
+                    }
+                    const s = parseInt(itemCountSecondary, 10);
+                    if (isNaN(s) || s < 0) {
+                      setItemCountSecondaryError("Enter a valid number (0 or above)");
+                      return;
+                    }
+                    countSecondary = s;
+                  }
                   updateMutation.mutate({
                     id: boxId,
                     data: {
@@ -191,9 +324,11 @@ function WorkflowStepCard({
                       status: selectedStatus as "pending" | "in_progress" | "completed" | "skipped",
                       assignedUserId: resolvedAssignedUserId,
                       notes: notes || null,
+                      itemCount: count,
+                      ...(countSecondary !== undefined ? { itemCountSecondary: countSecondary } : {}),
                     },
-                  })
-                }
+                  });
+                }}
               >
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
@@ -243,6 +378,13 @@ const editSchema = z.object({
   photoLink: z.string().optional(),
   deadline: z.string().optional(),
   inDate: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (!data.collectionsOwner?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Collections owner is required", path: ["collectionsOwner"] });
+  }
+  if (data.totalItems === undefined || data.totalItems === "") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required", path: ["totalItems"] });
+  }
 });
 
 type EditFormValues = z.infer<typeof editSchema>;
@@ -358,7 +500,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
 
             <FormField control={form.control} name="clientName" render={({ field }) => (
               <FormItem>
-              <FormLabel>Project Name *</FormLabel>
+              <FormLabel>Project Name <span className="text-destructive">*</span></FormLabel>
               <FormControl><Input placeholder="Project or department name" {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -366,7 +508,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
 
             <FormField control={form.control} name="collectionsOwner" render={({ field }) => (
               <FormItem>
-                <FormLabel>Collections Owner</FormLabel>
+                <FormLabel>Collections Owner <span className="text-destructive">*</span></FormLabel>
                 <FormControl><Input placeholder="Owner or custodian name" {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
@@ -481,7 +623,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
             <div className="grid grid-cols-2 gap-3">
               <FormField control={form.control} name="archiveYear" render={({ field }) => (
                 <FormItem>
-              <FormLabel>Periode *</FormLabel>
+              <FormLabel>Periode <span className="text-destructive">*</span></FormLabel>
               <FormControl><Input placeholder="1854-1930" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -489,7 +631,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
 
               <FormField control={form.control} name="totalItems" render={({ field }) => (
                 <FormItem>
-              <FormLabel>Total Items</FormLabel>
+              <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
               <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -900,6 +1042,30 @@ export default function BoxDetailPage() {
           <CardTitle className="text-base font-semibold">Workflow Progress</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Item count mismatch warning */}
+          {(() => {
+            const counted = (steps ?? []).filter(s => s.itemCount != null);
+            const unique = new Set(counted.map(s => s.itemCount));
+            if (counted.length >= 2 && unique.size > 1) {
+              return (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-3 text-sm">
+                  <span className="text-amber-600 dark:text-amber-400 mt-0.5">⚠</span>
+                  <div>
+                    <p className="font-semibold text-amber-800 dark:text-amber-300">Item count mismatch</p>
+                    <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                      Different item counts were recorded across workflow steps:&nbsp;
+                      {(steps ?? [])
+                        .filter(s => s.itemCount != null)
+                        .map(s => `${STEP_LABELS[s.stepName]} (${s.itemCount})`)
+                        .join(", ")}
+                      . Please verify and correct the counts.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
           {stepsLoading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-16 bg-muted rounded animate-pulse" />
