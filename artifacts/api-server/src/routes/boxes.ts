@@ -350,7 +350,7 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
       // All steps done — owned items are "completed" (stored), loaned items are "returned"
       const finalStatus = box.custodyType === "owned" ? "completed" : "returned";
       await db.update(boxesTable)
-        .set({ currentStep: null, status: finalStatus })
+        .set({ currentStep: null, status: finalStatus, outDate: updatedStep.completedAt ?? new Date() })
         .where(eq(boxesTable.id, id));
     }
   } else if (status === "in_progress") {
