@@ -19,13 +19,15 @@ import LabelPrintPage from "@/pages/label-print";
 import ActivityLogPage from "@/pages/activity-log";
 import LoginPage from "@/pages/login";
 import AdminAccountsPage from "@/pages/admin-accounts";
-import AcquisitionsPage from "@/pages/acquisitions";
+import CollectionsCostPage from "@/pages/acquisitions";
+import AlertsPage from "@/pages/alerts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 30,
       retry: 1,
+      refetchOnWindowFocus: false,
     },
   },
 });
@@ -67,6 +69,22 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 
   if (loading) return null;
   if (!isAdmin) return null;
+
+  return <>{children}</>;
+}
+
+function RequireFullAdmin({ children }: { children: React.ReactNode }) {
+  const { isFullAdmin, loading } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !isFullAdmin) {
+      navigate("/boxes");
+    }
+  }, [loading, isFullAdmin, navigate]);
+
+  if (loading) return null;
+  if (!isFullAdmin) return null;
 
   return <>{children}</>;
 }
@@ -121,10 +139,10 @@ function Router() {
         <RequireAuth><Layout><BoxesPage /></Layout></RequireAuth>
       )} />
       <Route path="/roles" component={() => (
-        <RequireAuth><RequireAdmin><Layout><RolesPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><RequireFullAdmin><Layout><RolesPage /></Layout></RequireFullAdmin></RequireAuth>
       )} />
       <Route path="/team" component={() => (
-        <RequireAuth><RequireAdmin><Layout><TeamPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><RequireFullAdmin><Layout><TeamPage /></Layout></RequireFullAdmin></RequireAuth>
       )} />
       <Route path="/settings" component={() => (
         <RequireAuth><Layout><SettingsPage /></Layout></RequireAuth>
@@ -133,7 +151,10 @@ function Router() {
         <RequireAuth><Layout><ScannerSimulatorPage /></Layout></RequireAuth>
       )} />
       <Route path="/acquisitions" component={() => (
-        <RequireAuth><RequireAdmin><Layout><AcquisitionsPage /></Layout></RequireAdmin></RequireAuth>
+        <RequireAuth><RequireAdmin><Layout><CollectionsCostPage /></Layout></RequireAdmin></RequireAuth>
+      )} />
+      <Route path="/alerts" component={() => (
+        <RequireAuth><Layout><AlertsPage /></Layout></RequireAuth>
       )} />
       <Route path="/activity-log" component={() => (
         <RequireAuth><Layout><ActivityLogPage /></Layout></RequireAuth>

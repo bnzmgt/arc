@@ -19,7 +19,13 @@ router.get("/auth/me", (req, res): void => {
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
-  const { username, password } = req.body as { username?: string; password?: string };
+  const { username, password, website } = req.body as { username?: string; password?: string; website?: string };
+
+  if (website) {
+    await new Promise(r => setTimeout(r, 1200));
+    res.status(401).json({ error: "Invalid username or password" });
+    return;
+  }
 
   if (!username || !password) {
     res.status(400).json({ error: "Username and password are required" });

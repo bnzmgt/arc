@@ -14,6 +14,19 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     return;
   }
   const level = req.session.accountLevel ?? "user";
+  if (level !== "admin" && level !== "staff_admin" && level !== "superadmin") {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+  next();
+}
+
+export function requireFullAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.session?.adminId) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  const level = req.session.accountLevel ?? "user";
   if (level !== "admin" && level !== "superadmin") {
     res.status(403).json({ error: "Admin access required" });
     return;

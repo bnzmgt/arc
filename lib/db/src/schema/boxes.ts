@@ -65,9 +65,12 @@ export const workflowStepsTable = pgTable("workflow_steps", {
   stepOrder: integer("step_order").notNull(),
   status: workflowStepStatusEnum("status").notNull().default("pending"),
   assignedUserId: integer("assigned_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  performedByAdminId: integer("performed_by_admin_id"),
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   notes: text("notes"),
+  itemCount: integer("item_count"),
+  itemCountSecondary: integer("item_count_secondary"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

@@ -13,4 +13,6 @@ export interface UpdateWorkflowBody {
   status: UpdateWorkflowBodyStatus;
   assignedUserId?: number | null;
   notes?: string | null;
+  itemCount?: number | null;
+  itemCountSecondary?: number | null;
 }

@@ -191,13 +191,17 @@ router.get("/boxes/:id/workflow", async (req, res): Promise<void> => {
       status: workflowStepsTable.status,
       assignedUserId: workflowStepsTable.assignedUserId,
       assignedUserName: usersTable.name,
+      performedByAdminName: adminAccountsTable.displayName,
       startedAt: workflowStepsTable.startedAt,
       completedAt: workflowStepsTable.completedAt,
       notes: workflowStepsTable.notes,
+      itemCount: workflowStepsTable.itemCount,
+      itemCountSecondary: workflowStepsTable.itemCountSecondary,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)
     .leftJoin(usersTable, eq(workflowStepsTable.assignedUserId, usersTable.id))
+    .leftJoin(adminAccountsTable, eq(workflowStepsTable.performedByAdminId, adminAccountsTable.id))
     .where(eq(workflowStepsTable.boxId, id))
     .orderBy(workflowStepsTable.stepOrder);
 
@@ -270,6 +274,18 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
         res.status(403).json({ error: "All 4 processing steps (Cleaning, Cataloging, Scanning, QC) must be completed before Repacking" });
         return;
       }
+      // Block completing Repacking if preceding steps have mismatched item counts
+      if (status === "completed") {
+        const effectiveCount = (s: { itemCount: number | null; itemCountSecondary: number | null }) =>
+          (s.itemCount ?? 0) + (s.itemCountSecondary ?? 0);
+        const countedSteps = firstFour.filter(s => s.status !== "skipped" && s.itemCount != null);
+        const uniqueCounts = new Set(countedSteps.map(s => effectiveCount(s)));
+        if (countedSteps.length >= 2 && uniqueCounts.size > 1) {
+          const detail = countedSteps.map(s => `${s.stepName} (${effectiveCount(s)})`).join(", ");
+          res.status(422).json({ error: `Item count mismatch in preceding steps: ${detail}. Staff must recount and correct the item counts before completing Repacking.` });
+          return;
+        }
+      }
     } else if (order === 6) {
       // Returning requires Repacking to be completed/skipped
       const repacking = allSteps.find(s => s.stepOrder === 5);
@@ -277,23 +293,45 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
         res.status(403).json({ error: "Repacking must be completed before Returning" });
         return;
       }
+      // Block completing Returning if any preceding steps have mismatched item counts
+      if (status === "completed") {
+        const effectiveCount = (s: { itemCount: number | null; itemCountSecondary: number | null }) =>
+          (s.itemCount ?? 0) + (s.itemCountSecondary ?? 0);
+        const preceding = allSteps.filter(s => s.stepOrder < 6 && s.status !== "skipped" && s.itemCount != null);
+        const uniqueCounts = new Set(preceding.map(s => effectiveCount(s)));
+        if (preceding.length >= 2 && uniqueCounts.size > 1) {
+          const detail = preceding.map(s => `${s.stepName} (${effectiveCount(s)})`).join(", ");
+          res.status(422).json({ error: `Item count mismatch in preceding steps: ${detail}. Staff must recount and correct the item counts before completing Returning.` });
+          return;
+        }
+      }
     }
   }
+
+  const itemCount = req.body.itemCount != null ? Number(req.body.itemCount) : undefined;
+  const itemCountSecondary = req.body.itemCountSecondary != null ? Number(req.body.itemCountSecondary) : undefined;
 
   const updateData: Record<string, unknown> = {
     status,
     notes: notes ?? targetStep.notes,
+    ...(itemCount !== undefined ? { itemCount } : {}),
+    ...(itemCountSecondary !== undefined ? { itemCountSecondary } : {}),
   };
 
   if (assignedUserId !== undefined) {
     updateData.assignedUserId = assignedUserId;
   }
 
+  if (req.session?.adminId) {
+    updateData.performedByAdminId = req.session.adminId;
+  }
+
   if (status === "in_progress" && !targetStep.startedAt) {
     updateData.startedAt = new Date();
   }
-  if (status === "completed" && !targetStep.completedAt) {
-    updateData.completedAt = new Date();
+  if (status === "completed") {
+    if (!targetStep.startedAt) updateData.startedAt = new Date();
+    if (!targetStep.completedAt) updateData.completedAt = new Date();
   }
 
   const [updatedStep] = await db
@@ -312,7 +350,7 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
       // All steps done — owned items are "completed" (stored), loaned items are "returned"
       const finalStatus = box.custodyType === "owned" ? "completed" : "returned";
       await db.update(boxesTable)
-        .set({ currentStep: null, status: finalStatus })
+        .set({ currentStep: null, status: finalStatus, outDate: updatedStep.completedAt ?? new Date() })
         .where(eq(boxesTable.id, id));
     }
   } else if (status === "in_progress") {
@@ -325,17 +363,23 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
     ? await db.select().from(usersTable).where(eq(usersTable.id, assignedUserId))
     : [null];
 
+  const adminId = req.session?.adminId ?? null;
+  const [adminAccount] = adminId
+    ? await db.select().from(adminAccountsTable).where(eq(adminAccountsTable.id, adminId))
+    : [null];
+
   await db.insert(activityLogTable).values({
     boxId: id,
     action: `Workflow step "${stepName}" updated to "${status}"`,
     stepName,
     performedByUserId: assignedUserId ?? null,
-    performedByAdminId: req.session?.adminId ?? null,
+    performedByAdminId: adminId,
   });
 
   res.json({
     ...updatedStep,
     assignedUserName: user?.name ?? null,
+    performedByAdminName: adminAccount?.displayName ?? null,
   });
 });
 
@@ -362,13 +406,17 @@ router.get("/boxes/:id/ticket", async (req, res): Promise<void> => {
       status: workflowStepsTable.status,
       assignedUserId: workflowStepsTable.assignedUserId,
       assignedUserName: usersTable.name,
+      performedByAdminName: adminAccountsTable.displayName,
       startedAt: workflowStepsTable.startedAt,
       completedAt: workflowStepsTable.completedAt,
       notes: workflowStepsTable.notes,
+      itemCount: workflowStepsTable.itemCount,
+      itemCountSecondary: workflowStepsTable.itemCountSecondary,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)
     .leftJoin(usersTable, eq(workflowStepsTable.assignedUserId, usersTable.id))
+    .leftJoin(adminAccountsTable, eq(workflowStepsTable.performedByAdminId, adminAccountsTable.id))
     .where(eq(workflowStepsTable.boxId, id))
     .orderBy(workflowStepsTable.stepOrder);
 
@@ -414,13 +462,17 @@ router.get("/scan/:ticketCode", async (req, res): Promise<void> => {
       status: workflowStepsTable.status,
       assignedUserId: workflowStepsTable.assignedUserId,
       assignedUserName: usersTable.name,
+      performedByAdminName: adminAccountsTable.displayName,
       startedAt: workflowStepsTable.startedAt,
       completedAt: workflowStepsTable.completedAt,
       notes: workflowStepsTable.notes,
+      itemCount: workflowStepsTable.itemCount,
+      itemCountSecondary: workflowStepsTable.itemCountSecondary,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)
     .leftJoin(usersTable, eq(workflowStepsTable.assignedUserId, usersTable.id))
+    .leftJoin(adminAccountsTable, eq(workflowStepsTable.performedByAdminId, adminAccountsTable.id))
     .where(eq(workflowStepsTable.boxId, box.id))
     .orderBy(workflowStepsTable.stepOrder);
 

@@ -53,6 +53,13 @@ const schema = z.object({
   photoLink: z.string().optional(),
   inDate: z.string().min(1, "Date received is required"),
   deadline: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (!data.collectionsOwner?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Collections owner is required", path: ["collectionsOwner"] });
+  }
+  if (data.totalItems === undefined || data.totalItems === "") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required", path: ["totalItems"] });
+  }
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -133,7 +140,7 @@ export default function BoxNewPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">New Archive Item</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">New Box Details</h1>
           <p className="text-sm text-muted-foreground mt-0.5">The box code will be generated automatically based on custody type (OWN / LOA) and year</p>
         </div>
       </div>
@@ -154,7 +161,7 @@ export default function BoxNewPage() {
                 name="clientName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Project Name *</FormLabel>
+                    <FormLabel>Project Name <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input placeholder="Project or department name" {...field} data-testid="input-client-name" />
                     </FormControl>
@@ -169,7 +176,7 @@ export default function BoxNewPage() {
                   name="collectionsOwner"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Collections Owner</FormLabel>
+                      <FormLabel>Collections Owner <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="Owner or custodian name" {...field} />
                       </FormControl>
@@ -198,7 +205,7 @@ export default function BoxNewPage() {
                 name="materialTypes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Material Type *</FormLabel>
+                    <FormLabel>Material Type <span className="text-destructive">*</span></FormLabel>
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       {MATERIAL_TYPES.map(t => (
                         <div key={t.value} className="flex items-center gap-2">
@@ -225,7 +232,7 @@ export default function BoxNewPage() {
                   name="priority"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Priority Level *</FormLabel>
+                      <FormLabel>Priority Level <span className="text-destructive">*</span></FormLabel>
                       <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger data-testid="select-priority">
@@ -248,7 +255,7 @@ export default function BoxNewPage() {
                   name="custodyType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Custody Type *</FormLabel>
+                      <FormLabel>Custody Type <span className="text-destructive">*</span></FormLabel>
                       <Select onValueChange={field.onChange} value={field.value ?? ""}>
                         <FormControl>
                           <SelectTrigger data-testid="select-custody-type">
@@ -350,7 +357,7 @@ export default function BoxNewPage() {
                   name="totalItems"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Items</FormLabel>
+                      <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="0" {...field} />
                       </FormControl>
@@ -366,7 +373,7 @@ export default function BoxNewPage() {
                   name="inDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Date Received *</FormLabel>
+                      <FormLabel>Date Received <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>

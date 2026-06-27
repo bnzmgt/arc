@@ -16,8 +16,11 @@ export interface WorkflowStep {
   status: WorkflowStepStatus;
   assignedUserId?: number | null;
   assignedUserName?: string | null;
+  performedByAdminName?: string | null;
   startedAt?: Date | null;
   completedAt?: Date | null;
   notes?: string | null;
+  itemCount?: number | null;
+  itemCountSecondary?: number | null;
   updatedAt: Date;
 }

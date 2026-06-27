@@ -12,7 +12,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { format, getMonth, getYear } from "date-fns";
-import { Download, Search, TrendingUp, Banknote, ShoppingCart, Calendar } from "lucide-react";
+import { Download, Search, TrendingUp, Banknote, ShoppingCart, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -123,8 +123,10 @@ function buildYearSheet(boxes: BoxItem[], year: number): XLSX.WorkSheet {
   return makeSheet(rows);
 }
 
-export default function AcquisitionsPage() {
+export default function CollectionsCostPage() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
 
   const [exportOpen, setExportOpen] = useState(false);
@@ -193,6 +195,10 @@ export default function AcquisitionsPage() {
       (b.materialTypes ?? []).join(", ").toLowerCase().includes(q)
     ).sort((a, b) => getAcquisitionDate(b).getTime() - getAcquisitionDate(a).getTime());
   }, [costBoxes, search]);
+
+  const totalPages = Math.max(1, Math.ceil(tableRows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedRows = tableRows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   function toggleMonth(m: number) {
     setExportMonths(prev => {
@@ -303,7 +309,7 @@ export default function AcquisitionsPage() {
     <div className="space-y-6" data-testid="acquisitions-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Acquisitions</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Collections Cost</h1>
           <p className="text-sm text-muted-foreground mt-1">Track spending on loans and purchased items</p>
         </div>
         <Button onClick={() => setExportOpen(true)} variant="outline" className="gap-2" data-testid="button-export-excel">
@@ -562,7 +568,7 @@ export default function AcquisitionsPage() {
             <Input
               placeholder="Search items..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               className="pl-8 h-8 text-sm"
               data-testid="input-search-acquisitions"
             />
@@ -600,7 +606,7 @@ export default function AcquisitionsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                tableRows.map(box => (
+                pagedRows.map(box => (
                   <TableRow key={box.id} className="hover:bg-muted/20">
                     <TableCell className="font-mono text-sm font-medium">{box.boxCode}</TableCell>
                     <TableCell className="font-medium">{box.clientName}</TableCell>
@@ -635,11 +641,60 @@ export default function AcquisitionsPage() {
             </TableBody>
           </Table>
           {tableRows.length > 0 && (
-            <div className="flex justify-end px-4 py-3 border-t border-border bg-muted/20">
-              <span className="text-sm font-semibold text-foreground">
-                Total: {fmt(tableRows.reduce((s, b) => s + parseCost(b.cost), 0))}
-              </span>
-            </div>
+            <>
+              {/* Pagination controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border bg-muted/20">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Rows per page:</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={v => { setPageSize(Number(v)); setPage(1); }}
+                  >
+                    <SelectTrigger className="h-7 w-20 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[12, 25, 50, 100].map(n => (
+                        <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>
+                    {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, tableRows.length)} of {tableRows.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-7 w-7" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                    <ChevronLeft size={13} />
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                    .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      p === "…" ? (
+                        <span key={`e-${i}`} className="px-1 text-xs text-muted-foreground">…</span>
+                      ) : (
+                        <Button key={p} variant={p === safePage ? "default" : "outline"} size="icon" className="h-7 w-7 text-xs" onClick={() => setPage(p as number)}>
+                          {p}
+                        </Button>
+                      )
+                    )}
+                  <Button variant="outline" size="icon" className="h-7 w-7" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                    <ChevronRight size={13} />
+                  </Button>
+                </div>
+              </div>
+              {/* Total footer */}
+              <div className="flex justify-end px-4 py-3 border-t border-border">
+                <span className="text-sm font-semibold text-foreground">
+                  Total: {fmt(tableRows.reduce((s, b) => s + parseCost(b.cost), 0))}
+                </span>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

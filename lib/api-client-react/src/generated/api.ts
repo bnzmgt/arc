@@ -23,8 +23,10 @@ import type {
   CreateRoleBody,
   CreateUserBody,
   DashboardStats,
+  GetPeriodProgressParams,
   HealthStatus,
   ListBoxesParams,
+  PeriodStats,
   Role,
   ScanResult,
   Ticket,
@@ -32,6 +34,7 @@ import type {
   UpdateRoleBody,
   UpdateUserBody,
   UpdateWorkflowBody,
+  UrgentAlerts,
   User,
   WorkflowProgressItem,
   WorkflowStep,
@@ -1682,6 +1685,178 @@ export function useGetWorkflowProgress<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetWorkflowProgressQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get overdue boxes and item count discrepancies
+ */
+export const getGetUrgentAlertsUrl = () => {
+  return `/api/stats/urgent-alerts`;
+};
+
+export const getUrgentAlerts = async (
+  options?: RequestInit,
+): Promise<UrgentAlerts> => {
+  return customFetch<UrgentAlerts>(getGetUrgentAlertsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUrgentAlertsQueryKey = () => {
+  return [`/api/stats/urgent-alerts`] as const;
+};
+
+export const getGetUrgentAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUrgentAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUrgentAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUrgentAlertsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUrgentAlerts>>> = ({
+    signal,
+  }) => getUrgentAlerts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUrgentAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUrgentAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUrgentAlerts>>
+>;
+export type GetUrgentAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get overdue boxes and item count discrepancies
+ */
+
+export function useGetUrgentAlerts<
+  TData = Awaited<ReturnType<typeof getUrgentAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUrgentAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUrgentAlertsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get progress stats for a time period (week, month, year)
+ */
+export const getGetPeriodProgressUrl = (params?: GetPeriodProgressParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stats/period-progress?${stringifiedParams}`
+    : `/api/stats/period-progress`;
+};
+
+export const getPeriodProgress = async (
+  params?: GetPeriodProgressParams,
+  options?: RequestInit,
+): Promise<PeriodStats> => {
+  return customFetch<PeriodStats>(getGetPeriodProgressUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPeriodProgressQueryKey = (
+  params?: GetPeriodProgressParams,
+) => {
+  return [`/api/stats/period-progress`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPeriodProgressQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPeriodProgress>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPeriodProgressParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPeriodProgress>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPeriodProgressQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPeriodProgress>>
+  > = ({ signal }) => getPeriodProgress(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPeriodProgress>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPeriodProgressQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPeriodProgress>>
+>;
+export type GetPeriodProgressQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get progress stats for a time period (week, month, year)
+ */
+
+export function useGetPeriodProgress<
+  TData = Awaited<ReturnType<typeof getPeriodProgress>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetPeriodProgressParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPeriodProgress>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPeriodProgressQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

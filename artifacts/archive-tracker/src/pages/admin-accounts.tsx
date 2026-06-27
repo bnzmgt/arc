@@ -35,6 +35,11 @@ const LEVEL_META: Record<string, { label: string; badge: string; icon: React.Rea
     badge: "bg-blue-50 text-blue-700 border-blue-200",
     icon: <ShieldCheck className="w-3 h-3" />,
   },
+  staff_admin: {
+    label: "Staff Admin",
+    badge: "bg-teal-50 text-teal-700 border-teal-200",
+    icon: <ShieldCheck className="w-3 h-3" />,
+  },
   user: {
     label: "Staff",
     badge: "bg-slate-50 text-slate-600 border-slate-200",
@@ -147,6 +152,7 @@ function CreateAccountDialog({ open, onOpenChange, onRefresh }: {
               <SelectContent>
                 <SelectItem value="superadmin">Super Admin — full access</SelectItem>
                 <SelectItem value="admin">Admin — manage boxes, team, roles</SelectItem>
+                <SelectItem value="staff_admin">Staff Admin — manage boxes, no team/roles</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">Staff-level accounts are created through the Team page.</p>
@@ -239,6 +245,7 @@ function EditAccountDialog({ account, open, onOpenChange, onRefresh }: {
                       <SelectContent>
                         <SelectItem value="superadmin">Super Admin — full access</SelectItem>
                         <SelectItem value="admin">Admin — manage boxes, team, roles</SelectItem>
+                        <SelectItem value="staff_admin">Staff Admin — manage boxes, no team/roles</SelectItem>
                       </SelectContent>
                     </Select>
                   </>
