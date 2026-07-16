@@ -19,7 +19,8 @@ export interface Box {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   status: BoxStatus;
   ticketCode: string;
   notes?: string;

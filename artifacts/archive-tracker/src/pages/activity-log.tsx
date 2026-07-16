@@ -14,9 +14,9 @@ import { STEP_LABELS, STEP_COLORS } from "@/lib/steps";
 
 interface ActivityRow {
   id: number;
-  boxId: number;
-  boxCode: string;
-  clientName: string;
+  boxId: number | null;
+  boxCode: string | null;
+  clientName: string | null;
   action: string;
   stepName: string | null;
   performedBy: string | null;
@@ -130,16 +130,24 @@ export default function ActivityLogPage() {
                     <div className="text-xs text-slate-400">{format(new Date(row.timestamp), "HH:mm:ss")}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/boxes/${row.boxId}`}
-                      className="group flex items-center gap-1 w-fit"
-                    >
-                      <Box className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-500 flex-shrink-0" />
-                      <span className="font-mono font-semibold text-slate-800 group-hover:text-orange-600 text-xs">
-                        {row.boxCode}
-                      </span>
-                    </Link>
-                    <p className="text-xs text-slate-500 truncate max-w-[140px]">{row.clientName}</p>
+                    {row.boxId && row.boxCode ? (
+                      <>
+                        <Link
+                          href={`/boxes/${row.boxId}`}
+                          className="group flex items-center gap-1 w-fit"
+                        >
+                          <Box className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-500 flex-shrink-0" />
+                          <span className="font-mono font-semibold text-slate-800 group-hover:text-orange-600 text-xs">
+                            {row.boxCode}
+                          </span>
+                        </Link>
+                        {row.clientName && (
+                          <p className="text-xs text-slate-500 truncate max-w-[140px]">{row.clientName}</p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {row.stepName ? (

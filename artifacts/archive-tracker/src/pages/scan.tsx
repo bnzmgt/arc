@@ -59,12 +59,36 @@ interface StepUpdateFormProps {
 
 function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCancel }: StepUpdateFormProps) {
   const splitConfig = SPLIT_STEP_CONFIG[stepName] ?? null;
+  const isQcStep = stepName === "qc";
+  const isRepackingStep = stepName === "repacking";
+  const isReturningStep = stepName === "returning";
+
   const [status, setStatus] = useState("in_progress");
   const [notes, setNotes] = useState("");
   const [itemCount, setItemCount] = useState("");
   const [itemCountSecondary, setItemCountSecondary] = useState("");
   const [itemCountError, setItemCountError] = useState("");
   const [itemCountSecondaryError, setItemCountSecondaryError] = useState("");
+  // QC
+  const [copyForClient, setCopyForClient] = useState("");
+  const [storagePrepared, setStoragePrepared] = useState("");
+  const [copyForClientError, setCopyForClientError] = useState("");
+  const [storagePreparedError, setStoragePreparedError] = useState("");
+  // Repacking
+  const [hddReady, setHddReady] = useState("");
+  const [documentHandover, setDocumentHandover] = useState("");
+  const [hddReadyError, setHddReadyError] = useState("");
+  const [documentHandoverError, setDocumentHandoverError] = useState("");
+  // Returning
+  const [clientCopyReceived, setClientCopyReceived] = useState("");
+  const [hddReceivedByClient, setHddReceivedByClient] = useState("");
+  const [handoverDocumentSigned, setHandoverDocumentSigned] = useState("");
+  const [unreturnedMaterials, setUnreturnedMaterials] = useState("");
+  const [clientCopyReceivedError, setClientCopyReceivedError] = useState("");
+  const [hddReceivedByClientError, setHddReceivedByClientError] = useState("");
+  const [handoverDocumentSignedError, setHandoverDocumentSignedError] = useState("");
+  const [unreturnedMaterialsError, setUnreturnedMaterialsError] = useState("");
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -101,37 +125,29 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
           </SelectContent>
         </Select>
       </div>
+
+      {/* Item counts */}
       {splitConfig ? (
         <div className="space-y-2">
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              {splitConfig.primary}
-              <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              value={itemCount}
-              onChange={(e) => { setItemCount(e.target.value); setItemCountError(""); }}
-              placeholder="0"
-              className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`}
-            />
-            {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              {splitConfig.secondary}
-              <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              value={itemCountSecondary}
-              onChange={(e) => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
-              placeholder="0"
-              className={`mt-1 h-9 text-sm ${itemCountSecondaryError ? "border-destructive" : ""}`}
-            />
-            {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                {splitConfig.primary}<span className="text-destructive">*</span>
+              </Label>
+              <Input type="number" min={0} value={itemCount}
+                onChange={(e) => { setItemCount(e.target.value); setItemCountError(""); }}
+                placeholder="0" className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`} />
+              {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                {splitConfig.secondary}<span className="text-destructive">*</span>
+              </Label>
+              <Input type="number" min={0} value={itemCountSecondary}
+                onChange={(e) => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
+                placeholder="0" className={`mt-1 h-9 text-sm ${itemCountSecondaryError ? "border-destructive" : ""}`} />
+              {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+            </div>
           </div>
           {itemCount !== "" && itemCountSecondary !== "" && !isNaN(parseInt(itemCount)) && !isNaN(parseInt(itemCountSecondary)) && (
             <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md">
@@ -142,32 +158,124 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
       ) : (
         <div>
           <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-            Item Count
-            <span className="text-destructive">*</span>
+            Item Count<span className="text-destructive">*</span>
           </Label>
-          <Input
-            type="number"
-            min={0}
-            value={itemCount}
+          <Input type="number" min={0} value={itemCount}
             onChange={(e) => { setItemCount(e.target.value); setItemCountError(""); }}
             placeholder="Enter number of items"
-            className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`}
-          />
-          {itemCountError && (
-            <p className="text-xs text-destructive mt-1">{itemCountError}</p>
-          )}
+            className={`mt-1 h-9 text-sm ${itemCountError ? "border-destructive" : ""}`} />
+          {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
         </div>
       )}
+
+      {/* QC fields */}
+      {isQcStep && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              Copy for client?<span className="text-destructive">*</span>
+            </Label>
+            <Select value={copyForClient} onValueChange={v => { setCopyForClient(v); setCopyForClientError(""); }}>
+              <SelectTrigger className={`mt-1 h-9 text-sm ${copyForClientError ? "border-destructive" : ""}`}>
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ready">Ready</SelectItem>
+                <SelectItem value="later">Later</SelectItem>
+                <SelectItem value="not_yet">Not Yet</SelectItem>
+              </SelectContent>
+            </Select>
+            {copyForClientError && <p className="text-xs text-destructive mt-1">{copyForClientError}</p>}
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              Storage prepared?<span className="text-destructive">*</span>
+            </Label>
+            <Select value={storagePrepared} onValueChange={v => { setStoragePrepared(v); setStoragePreparedError(""); }}>
+              <SelectTrigger className={`mt-1 h-9 text-sm ${storagePreparedError ? "border-destructive" : ""}`}>
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ptad">PTAD</SelectItem>
+                <SelectItem value="client">Client</SelectItem>
+              </SelectContent>
+            </Select>
+            {storagePreparedError && <p className="text-xs text-destructive mt-1">{storagePreparedError}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Repacking fields */}
+      {isRepackingStep && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              HDD ready?<span className="text-destructive">*</span>
+            </Label>
+            <Select value={hddReady} onValueChange={v => { setHddReady(v); setHddReadyError(""); }}>
+              <SelectTrigger className={`mt-1 h-9 text-sm ${hddReadyError ? "border-destructive" : ""}`}>
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">Yes</SelectItem>
+                <SelectItem value="later">Later</SelectItem>
+                <SelectItem value="not_yet">Not Yet</SelectItem>
+              </SelectContent>
+            </Select>
+            {hddReadyError && <p className="text-xs text-destructive mt-1">{hddReadyError}</p>}
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+              Document handover?<span className="text-destructive">*</span>
+            </Label>
+            <Select value={documentHandover} onValueChange={v => { setDocumentHandover(v); setDocumentHandoverError(""); }}>
+              <SelectTrigger className={`mt-1 h-9 text-sm ${documentHandoverError ? "border-destructive" : ""}`}>
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">Yes</SelectItem>
+                <SelectItem value="not_yet">Not Yet</SelectItem>
+              </SelectContent>
+            </Select>
+            {documentHandoverError && <p className="text-xs text-destructive mt-1">{documentHandoverError}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Returning fields */}
+      {isReturningStep && (
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "Client copy received?", val: clientCopyReceived, set: setClientCopyReceived, err: clientCopyReceivedError, setErr: setClientCopyReceivedError },
+            { label: "HDD received by client?", val: hddReceivedByClient, set: setHddReceivedByClient, err: hddReceivedByClientError, setErr: setHddReceivedByClientError },
+            { label: "Handover doc signed?", val: handoverDocumentSigned, set: setHandoverDocumentSigned, err: handoverDocumentSignedError, setErr: setHandoverDocumentSignedError },
+            { label: "Unreturned materials?", val: unreturnedMaterials, set: setUnreturnedMaterials, err: unreturnedMaterialsError, setErr: setUnreturnedMaterialsError },
+          ].map(({ label, val, set, err, setErr }) => (
+            <div key={label}>
+              <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                {label}<span className="text-destructive">*</span>
+              </Label>
+              <Select value={val} onValueChange={v => { set(v); setErr(""); }}>
+                <SelectTrigger className={`mt-1 h-9 text-sm ${err ? "border-destructive" : ""}`}>
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+              {err && <p className="text-xs text-destructive mt-1">{err}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div>
         <Label className="text-xs font-medium text-muted-foreground">Notes (optional)</Label>
-        <Textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add notes..."
-          rows={2}
-          className="mt-1 text-sm resize-none"
-        />
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+          placeholder="Add notes..." rows={2} className="mt-1 text-sm resize-none" />
       </div>
+
       <div className="flex gap-2">
         <Button
           className="flex-1 h-9"
@@ -179,22 +287,38 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
               return;
             }
             const count = parseInt(itemCount, 10);
-            if (isNaN(count) || count < 0) {
-              setItemCountError("Enter a valid number (0 or above)");
-              return;
-            }
+            if (isNaN(count) || count < 0) { setItemCountError("Enter a valid number (0 or above)"); return; }
             let countSecondary: number | undefined;
             if (splitConfig) {
               if (!itemCountSecondary || itemCountSecondary.trim() === "") {
-                setItemCountSecondaryError(`${splitConfig.secondary} count is required`);
-                return;
+                setItemCountSecondaryError(`${splitConfig.secondary} count is required`); return;
               }
               const s = parseInt(itemCountSecondary, 10);
-              if (isNaN(s) || s < 0) {
-                setItemCountSecondaryError("Enter a valid number (0 or above)");
-                return;
-              }
+              if (isNaN(s) || s < 0) { setItemCountSecondaryError("Enter a valid number (0 or above)"); return; }
               countSecondary = s;
+            }
+            if (isQcStep) {
+              if (!copyForClient) { setCopyForClientError("Required"); return; }
+              if (!storagePrepared) { setStoragePreparedError("Required"); return; }
+            }
+            if (isRepackingStep) {
+              if (!hddReady) { setHddReadyError("Required"); return; }
+              if (!documentHandover) { setDocumentHandoverError("Required"); return; }
+              if (status === "completed" && documentHandover === "not_yet") {
+                setDocumentHandoverError("Must not be 'Not Yet' to mark as Completed"); return;
+              }
+            }
+            if (isReturningStep) {
+              if (!clientCopyReceived) { setClientCopyReceivedError("Required"); return; }
+              if (!hddReceivedByClient) { setHddReceivedByClientError("Required"); return; }
+              if (!handoverDocumentSigned) { setHandoverDocumentSignedError("Required"); return; }
+              if (!unreturnedMaterials) { setUnreturnedMaterialsError("Required"); return; }
+              if (status === "completed") {
+                if (clientCopyReceived !== "yes") { setClientCopyReceivedError("Must be 'Yes' to complete"); return; }
+                if (hddReceivedByClient !== "yes") { setHddReceivedByClientError("Must be 'Yes' to complete"); return; }
+                if (handoverDocumentSigned !== "yes") { setHandoverDocumentSignedError("Must be 'Yes' to complete"); return; }
+                if (unreturnedMaterials !== "no") { setUnreturnedMaterialsError("Must be 'No' to complete"); return; }
+              }
             }
             mutation.mutate({
               id: boxId,
@@ -205,6 +329,9 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
                 notes: notes.trim() || null,
                 itemCount: count,
                 ...(countSecondary !== undefined ? { itemCountSecondary: countSecondary } : {}),
+                ...(isQcStep ? { copyForClient: copyForClient || null, storagePrepared: storagePrepared || null } : {}),
+                ...(isRepackingStep ? { hddReady: hddReady || null, documentHandover: documentHandover || null } : {}),
+                ...(isReturningStep ? { clientCopyReceived: clientCopyReceived || null, hddReceivedByClient: hddReceivedByClient || null, handoverDocumentSigned: handoverDocumentSigned || null, unreturnedMaterials: unreturnedMaterials || null } : {}),
               },
             });
           }}
@@ -212,9 +339,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
         >
           {mutation.isPending ? "Saving…" : "Save Update"}
         </Button>
-        <Button variant="outline" size="sm" className="h-9" onClick={onCancel}>
-          Cancel
-        </Button>
+        <Button variant="outline" size="sm" className="h-9" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );
@@ -345,12 +470,23 @@ export default function ScanPage() {
                 <p className="font-medium">{box.location}</p>
               </div>
             )}
-            {box.totalItems != null && (
+            {box.totalBoxes != null && (
+              <div>
+                <p className="text-xs text-muted-foreground">Boxes</p>
+                <p className="font-medium">{box.totalBoxes}</p>
+              </div>
+            )}
+            {box.totalItems != null ? (
               <div>
                 <p className="text-xs text-muted-foreground">Items</p>
                 <p className="font-medium">{box.totalItems}</p>
               </div>
-            )}
+            ) : box.totalBoxes != null ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Items</p>
+                <p className="font-medium italic text-muted-foreground">Unknown</p>
+              </div>
+            ) : null}
             {box.inDate && (
               <div>
                 <p className="text-xs text-muted-foreground">Received</p>
@@ -359,7 +495,27 @@ export default function ScanPage() {
             )}
             <div>
               <p className="text-xs text-muted-foreground">Current Step</p>
-              <p className="font-medium">{STEP_LABELS[box.currentStep] ?? box.currentStep}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="font-medium">{STEP_LABELS[box.currentStep] ?? box.currentStep}</p>
+                {(() => {
+                  const currentStepData = workflowSteps.find(s => s.stepName === box.currentStep);
+                  if (currentStepData?.status === "completed" || box.status === "completed") {
+                    return (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 size={10} /> Completed
+                      </span>
+                    );
+                  }
+                  if (currentStepData?.status === "in_progress") {
+                    return (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                        <Clock size={10} /> In Progress
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
             </div>
           </div>
           {box.notes && (
@@ -465,29 +621,82 @@ export default function ScanPage() {
                           {step.completedAt && `Completed: ${format(new Date(step.completedAt), "MMM d, HH:mm")}`}
                         </p>
                       )}
-                      {step.itemCount != null && (() => {
-                        const sc = SPLIT_STEP_CONFIG[step.stepName];
-                        if (sc) {
-                          return (
-                            <p className="text-xs text-muted-foreground">
-                              <span className="font-medium text-foreground">{step.itemCount}</span> {sc.primary}
-                              {step.itemCountSecondary != null && (
-                                <> + <span className="font-medium text-foreground">{step.itemCountSecondary}</span> {sc.secondary}</>
+                      {/* Step details grid */}
+                      <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        {(() => {
+                          const sc = SPLIT_STEP_CONFIG[step.stepName];
+                          if (sc) return (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground w-20 shrink-0">{sc.primary}</span>
+                                <span className="text-xs font-medium">{step.itemCount != null ? step.itemCount : <span className="text-muted-foreground/40">—</span>}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground w-20 shrink-0">{sc.secondary}</span>
+                                <span className="text-xs font-medium">{step.itemCountSecondary != null ? step.itemCountSecondary : <span className="text-muted-foreground/40">—</span>}</span>
+                              </div>
+                              {step.itemCount != null && step.itemCountSecondary != null && (
+                                <div className="col-span-2 flex items-center gap-1.5">
+                                  <span className="text-xs text-muted-foreground w-20 shrink-0">Total</span>
+                                  <span className="text-xs font-semibold">{step.itemCount + step.itemCountSecondary}</span>
+                                </div>
                               )}
-                              {step.itemCountSecondary != null && (
-                                <> = <span className="font-semibold text-foreground">{step.itemCount + step.itemCountSecondary}</span> total</>
-                              )}
-                            </p>
+                            </>
                           );
-                        }
-                        return (
-                          <p className="text-xs text-muted-foreground">
-                            <span className="font-medium text-foreground">{step.itemCount}</span> items recorded
-                          </p>
-                        );
-                      })()}
+                          return (
+                            <div className="col-span-2 flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 shrink-0">Item count</span>
+                              <span className="text-xs font-medium">{step.itemCount != null ? step.itemCount : <span className="text-muted-foreground/40">—</span>}</span>
+                            </div>
+                          );
+                        })()}
+                        {/* QC fields */}
+                        {step.stepName === "qc" && (() => {
+                          const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : null;
+                          const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : null;
+                          return (<>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 shrink-0">Copy for client</span>
+                              {copyLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 shrink-0">Storage</span>
+                              {storageLabel ? <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">{storageLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                            </div>
+                          </>);
+                        })()}
+                        {/* Repacking fields */}
+                        {step.stepName === "repacking" && (() => {
+                          const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : null;
+                          const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : null;
+                          return (<>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 shrink-0">HDD ready</span>
+                              {hddLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 shrink-0">Doc handover</span>
+                              {handoverLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                            </div>
+                          </>);
+                        })()}
+                        {/* Returning fields */}
+                        {step.stepName === "returning" && (() => {
+                          const yesNo = (val: string | null | undefined, invertGood?: boolean) => {
+                            if (!val) return <span className="text-xs text-muted-foreground/40">—</span>;
+                            const isGood = invertGood ? val === "no" : val === "yes";
+                            return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${isGood ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{val === "yes" ? "Yes" : "No"}</span>;
+                          };
+                          return (<>
+                            <div className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground w-20 shrink-0">Client copy</span>{yesNo(step.clientCopyReceived)}</div>
+                            <div className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground w-20 shrink-0">HDD received</span>{yesNo(step.hddReceivedByClient)}</div>
+                            <div className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground w-20 shrink-0">Doc signed</span>{yesNo(step.handoverDocumentSigned)}</div>
+                            <div className="flex items-center gap-1.5"><span className="text-xs text-muted-foreground w-20 shrink-0">Unreturned</span>{yesNo(step.unreturnedMaterials, true)}</div>
+                          </>);
+                        })()}
+                      </div>
                       {step.notes && (
-                        <p className="text-xs text-muted-foreground italic mt-1">{step.notes}</p>
+                        <p className="text-xs text-muted-foreground italic mt-1.5 border-t border-border/50 pt-1.5">{step.notes}</p>
                       )}
                     </div>
                     <WorkflowStatusBadge status={step.status} />

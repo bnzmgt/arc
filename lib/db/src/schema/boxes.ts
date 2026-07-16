@@ -8,7 +8,7 @@ export const workflowStepStatusEnum = pgEnum("workflow_step_status", ["pending",
 export const roleWorkflowStepEnum = pgEnum("role_workflow_step", ["cleaning", "cataloging", "scanning", "qc", "repacking", "returning", "admin"]);
 export const materialTypeEnum = pgEnum("material_type", ["newspaper", "maps", "books", "magazine", "archives", "heritage_items"]);
 export const priorityLevelEnum = pgEnum("priority_level", ["P0", "P1", "P2", "P3"]);
-export const custodyTypeEnum = pgEnum("custody_type", ["loan", "owned"]);
+export const custodyTypeEnum = pgEnum("custody_type", ["loan", "ptad", "project"]);
 
 export const rolesTable = pgTable("roles", {
   id: serial("id").primaryKey(),
@@ -40,6 +40,7 @@ export const boxesTable = pgTable("boxes", {
   description: text("description"),
   location: text("location"),
   archiveYear: text("archive_year"),
+  totalBoxes: integer("total_boxes"),
   totalItems: integer("total_items"),
   materialTypes: text("material_types").array().notNull().default(["newspaper"]),
   placeOfOrigin: text("place_of_origin"),
@@ -71,12 +72,20 @@ export const workflowStepsTable = pgTable("workflow_steps", {
   notes: text("notes"),
   itemCount: integer("item_count"),
   itemCountSecondary: integer("item_count_secondary"),
+  copyForClient: text("copy_for_client"),
+  storagePrepared: text("storage_prepared"),
+  hddReady: text("hdd_ready"),
+  documentHandover: text("document_handover"),
+  clientCopyReceived: text("client_copy_received"),
+  hddReceivedByClient: text("hdd_received_by_client"),
+  handoverDocumentSigned: text("handover_document_signed"),
+  unreturnedMaterials: text("unreturned_materials"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
 export const activityLogTable = pgTable("activity_log", {
   id: serial("id").primaryKey(),
-  boxId: integer("box_id").notNull().references(() => boxesTable.id, { onDelete: "cascade" }),
+  boxId: integer("box_id").references(() => boxesTable.id, { onDelete: "set null" }),
   action: text("action").notNull(),
   stepName: text("step_name"),
   performedByUserId: integer("performed_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),

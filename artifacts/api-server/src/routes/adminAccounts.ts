@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, adminAccountsTable } from "@workspace/db";
+import { db, adminAccountsTable, activityLogTable } from "@workspace/db";
 import { eq, isNull, ne } from "drizzle-orm";
 import { requireAdmin, requireSuperAdmin } from "../lib/authMiddleware";
 import { ACCOUNT_LEVELS } from "@workspace/db";
@@ -138,6 +138,15 @@ router.patch("/admin-accounts/:id", requireSuperAdmin, async (req, res): Promise
     .returning();
 
   if (!account) { res.status(404).json({ error: "Account not found" }); return; }
+
+  if (password) {
+    await db.insert(activityLogTable).values({
+      boxId: null,
+      action: `Password changed for account: ${account.username} (${account.displayName})`,
+      stepName: null,
+      performedByAdminId: req.session.adminId ?? null,
+    });
+  }
 
   res.json({
     id: account.id,

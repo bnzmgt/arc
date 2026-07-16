@@ -27,11 +27,12 @@ async function createWorkflowSteps(boxId: number) {
 
 const CUSTODY_TYPE_PREFIXES: Record<string, string> = {
   loan: "LOA",
-  owned: "OWN",
+  ptad: "PTAD",
+  project: "PRJ",
 };
 
 async function generateBoxCode(custodyType: string): Promise<string> {
-  const prefix = CUSTODY_TYPE_PREFIXES[custodyType] ?? "OWN";
+  const prefix = CUSTODY_TYPE_PREFIXES[custodyType] ?? "PTAD";
   const year = new Date().getFullYear();
   const result = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -81,7 +82,7 @@ router.post("/boxes", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  const boxCode = await generateBoxCode(parsed.data.custodyType ?? "owned");
+  const boxCode = await generateBoxCode(parsed.data.custodyType ?? "ptad");
   const [box] = await db.insert(boxesTable).values({
     ...parsed.data,
     boxCode,
@@ -165,11 +166,21 @@ router.delete("/boxes/:id", requireAdmin, async (req, res): Promise<void> => {
     return;
   }
 
-  const [box] = await db.delete(boxesTable).where(eq(boxesTable.id, id)).returning();
+  const [box] = await db.select().from(boxesTable).where(eq(boxesTable.id, id));
   if (!box) {
     res.status(404).json({ error: "Box not found" });
     return;
   }
+
+  await db.insert(activityLogTable).values({
+    boxId: null,
+    action: `Box deleted: ${box.boxCode} — ${box.clientName}`,
+    stepName: null,
+    performedByUserId: null,
+    performedByAdminId: req.session?.adminId ?? null,
+  });
+
+  await db.delete(boxesTable).where(eq(boxesTable.id, id));
 
   res.sendStatus(204);
 });
@@ -197,6 +208,14 @@ router.get("/boxes/:id/workflow", async (req, res): Promise<void> => {
       notes: workflowStepsTable.notes,
       itemCount: workflowStepsTable.itemCount,
       itemCountSecondary: workflowStepsTable.itemCountSecondary,
+      copyForClient: workflowStepsTable.copyForClient,
+      storagePrepared: workflowStepsTable.storagePrepared,
+      hddReady: workflowStepsTable.hddReady,
+      documentHandover: workflowStepsTable.documentHandover,
+      clientCopyReceived: workflowStepsTable.clientCopyReceived,
+      hddReceivedByClient: workflowStepsTable.hddReceivedByClient,
+      handoverDocumentSigned: workflowStepsTable.handoverDocumentSigned,
+      unreturnedMaterials: workflowStepsTable.unreturnedMaterials,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)
@@ -310,12 +329,28 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
 
   const itemCount = req.body.itemCount != null ? Number(req.body.itemCount) : undefined;
   const itemCountSecondary = req.body.itemCountSecondary != null ? Number(req.body.itemCountSecondary) : undefined;
+  const copyForClient = req.body.copyForClient !== undefined ? (req.body.copyForClient ?? null) : undefined;
+  const storagePrepared = req.body.storagePrepared !== undefined ? (req.body.storagePrepared ?? null) : undefined;
+  const hddReady = req.body.hddReady !== undefined ? (req.body.hddReady ?? null) : undefined;
+  const documentHandover = req.body.documentHandover !== undefined ? (req.body.documentHandover ?? null) : undefined;
+  const clientCopyReceived = req.body.clientCopyReceived !== undefined ? (req.body.clientCopyReceived ?? null) : undefined;
+  const hddReceivedByClient = req.body.hddReceivedByClient !== undefined ? (req.body.hddReceivedByClient ?? null) : undefined;
+  const handoverDocumentSigned = req.body.handoverDocumentSigned !== undefined ? (req.body.handoverDocumentSigned ?? null) : undefined;
+  const unreturnedMaterials = req.body.unreturnedMaterials !== undefined ? (req.body.unreturnedMaterials ?? null) : undefined;
 
   const updateData: Record<string, unknown> = {
     status,
     notes: notes ?? targetStep.notes,
     ...(itemCount !== undefined ? { itemCount } : {}),
     ...(itemCountSecondary !== undefined ? { itemCountSecondary } : {}),
+    ...(copyForClient !== undefined ? { copyForClient } : {}),
+    ...(storagePrepared !== undefined ? { storagePrepared } : {}),
+    ...(hddReady !== undefined ? { hddReady } : {}),
+    ...(documentHandover !== undefined ? { documentHandover } : {}),
+    ...(clientCopyReceived !== undefined ? { clientCopyReceived } : {}),
+    ...(hddReceivedByClient !== undefined ? { hddReceivedByClient } : {}),
+    ...(handoverDocumentSigned !== undefined ? { handoverDocumentSigned } : {}),
+    ...(unreturnedMaterials !== undefined ? { unreturnedMaterials } : {}),
   };
 
   if (assignedUserId !== undefined) {
@@ -348,7 +383,7 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
         .where(eq(boxesTable.id, id));
     } else {
       // All steps done — owned items are "completed" (stored), loaned items are "returned"
-      const finalStatus = box.custodyType === "owned" ? "completed" : "returned";
+      const finalStatus = box.custodyType === "ptad" ? "completed" : "returned";
       await db.update(boxesTable)
         .set({ currentStep: null, status: finalStatus, outDate: updatedStep.completedAt ?? new Date() })
         .where(eq(boxesTable.id, id));
@@ -412,6 +447,14 @@ router.get("/boxes/:id/ticket", async (req, res): Promise<void> => {
       notes: workflowStepsTable.notes,
       itemCount: workflowStepsTable.itemCount,
       itemCountSecondary: workflowStepsTable.itemCountSecondary,
+      copyForClient: workflowStepsTable.copyForClient,
+      storagePrepared: workflowStepsTable.storagePrepared,
+      hddReady: workflowStepsTable.hddReady,
+      documentHandover: workflowStepsTable.documentHandover,
+      clientCopyReceived: workflowStepsTable.clientCopyReceived,
+      hddReceivedByClient: workflowStepsTable.hddReceivedByClient,
+      handoverDocumentSigned: workflowStepsTable.handoverDocumentSigned,
+      unreturnedMaterials: workflowStepsTable.unreturnedMaterials,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)
@@ -468,6 +511,14 @@ router.get("/scan/:ticketCode", async (req, res): Promise<void> => {
       notes: workflowStepsTable.notes,
       itemCount: workflowStepsTable.itemCount,
       itemCountSecondary: workflowStepsTable.itemCountSecondary,
+      copyForClient: workflowStepsTable.copyForClient,
+      storagePrepared: workflowStepsTable.storagePrepared,
+      hddReady: workflowStepsTable.hddReady,
+      documentHandover: workflowStepsTable.documentHandover,
+      clientCopyReceived: workflowStepsTable.clientCopyReceived,
+      hddReceivedByClient: workflowStepsTable.hddReceivedByClient,
+      handoverDocumentSigned: workflowStepsTable.handoverDocumentSigned,
+      unreturnedMaterials: workflowStepsTable.unreturnedMaterials,
       updatedAt: workflowStepsTable.updatedAt,
     })
     .from(workflowStepsTable)

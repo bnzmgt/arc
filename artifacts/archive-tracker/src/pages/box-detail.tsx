@@ -57,7 +57,7 @@ function WorkflowStepCard({
   onUpdated,
   staffIdentity,
 }: {
-  step: { id: number; stepName: string; stepOrder: number; status: string; assignedUserId?: number | null; assignedUserName?: string | null; performedByAdminName?: string | null; startedAt?: string | null; completedAt?: string | null; notes?: string | null; itemCount?: number | null; itemCountSecondary?: number | null; updatedAt: string };
+  step: { id: number; stepName: string; stepOrder: number; status: string; assignedUserId?: number | null; assignedUserName?: string | null; performedByAdminName?: string | null; startedAt?: string | null; completedAt?: string | null; notes?: string | null; itemCount?: number | null; itemCountSecondary?: number | null; copyForClient?: string | null; storagePrepared?: string | null; hddReady?: string | null; documentHandover?: string | null; clientCopyReceived?: string | null; hddReceivedByClient?: string | null; handoverDocumentSigned?: string | null; unreturnedMaterials?: string | null; updatedAt: string };
   boxId: number;
   users: Array<{ id: number; name: string }>;
   onUpdated: () => void;
@@ -79,6 +79,25 @@ function WorkflowStepCard({
   const [itemCountSecondary, setItemCountSecondary] = useState(step.itemCountSecondary?.toString() ?? "");
   const [itemCountError, setItemCountError] = useState("");
   const [itemCountSecondaryError, setItemCountSecondaryError] = useState("");
+  const isQcStep = step.stepName === "qc";
+  const isRepackingStep = step.stepName === "repacking";
+  const isReturningStep = step.stepName === "returning";
+  const [copyForClient, setCopyForClient] = useState(step.copyForClient ?? "");
+  const [storagePrepared, setStoragePrepared] = useState(step.storagePrepared ?? "");
+  const [copyForClientError, setCopyForClientError] = useState("");
+  const [storagePreparedError, setStoragePreparedError] = useState("");
+  const [hddReady, setHddReady] = useState(step.hddReady ?? "");
+  const [documentHandover, setDocumentHandover] = useState(step.documentHandover ?? "");
+  const [hddReadyError, setHddReadyError] = useState("");
+  const [documentHandoverError, setDocumentHandoverError] = useState("");
+  const [clientCopyReceived, setClientCopyReceived] = useState(step.clientCopyReceived ?? "");
+  const [hddReceivedByClient, setHddReceivedByClient] = useState(step.hddReceivedByClient ?? "");
+  const [handoverDocumentSigned, setHandoverDocumentSigned] = useState(step.handoverDocumentSigned ?? "");
+  const [unreturnedMaterials, setUnreturnedMaterials] = useState(step.unreturnedMaterials ?? "");
+  const [clientCopyReceivedError, setClientCopyReceivedError] = useState("");
+  const [hddReceivedByClientError, setHddReceivedByClientError] = useState("");
+  const [handoverDocumentSignedError, setHandoverDocumentSignedError] = useState("");
+  const [unreturnedMaterialsError, setUnreturnedMaterialsError] = useState("");
   const { toast } = useToast();
 
   const updateMutation = useUpdateBoxWorkflow({
@@ -135,24 +154,107 @@ function WorkflowStepCard({
             {step.completedAt && `Completed: ${format(new Date(step.completedAt), "MMM d, yyyy HH:mm")}`}
           </p>
         )}
-        {step.itemCount != null && (
-          splitConfig ? (
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="font-medium text-foreground">{step.itemCount}</span> {splitConfig.primary}
-              {step.itemCountSecondary != null && (
-                <> + <span className="font-medium text-foreground">{step.itemCountSecondary}</span> {splitConfig.secondary}</>
+        {/* Step details grid — always visible */}
+        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+          {/* Item counts */}
+          {splitConfig ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground w-24 shrink-0">{splitConfig.primary}</span>
+                <span className="text-xs font-medium">{step.itemCount != null ? step.itemCount : <span className="text-muted-foreground/50">—</span>}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground w-24 shrink-0">{splitConfig.secondary}</span>
+                <span className="text-xs font-medium">{step.itemCountSecondary != null ? step.itemCountSecondary : <span className="text-muted-foreground/50">—</span>}</span>
+              </div>
+              {step.itemCount != null && step.itemCountSecondary != null && (
+                <div className="col-span-2 flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Total</span>
+                  <span className="text-xs font-semibold">{step.itemCount + step.itemCountSecondary}</span>
+                </div>
               )}
-              {step.itemCountSecondary != null && (
-                <> = <span className="font-semibold text-foreground">{step.itemCount + step.itemCountSecondary}</span> total</>
-              )}
-            </p>
+            </>
           ) : (
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-              <span className="font-medium text-foreground">{step.itemCount}</span> items recorded
-            </p>
-          )
-        )}
-        {step.notes && <p className="text-sm text-muted-foreground mt-1 italic">{step.notes}</p>}
+            <div className="col-span-2 flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0">Item count</span>
+              <span className="text-xs font-medium">{step.itemCount != null ? step.itemCount : <span className="text-muted-foreground/50">—</span>}</span>
+            </div>
+          )}
+
+          {/* QC-specific fields */}
+          {step.stepName === "qc" && (() => {
+            const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : null;
+            const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : null;
+            return (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Copy for client</span>
+                  {copyLabel
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span>
+                    : <span className="text-xs text-muted-foreground/50">—</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Storage</span>
+                  {storageLabel
+                    ? <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">{storageLabel}</span>
+                    : <span className="text-xs text-muted-foreground/50">—</span>}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Repacking-specific fields */}
+          {step.stepName === "repacking" && (() => {
+            const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : null;
+            const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : null;
+            return (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">HDD ready</span>
+                  {hddLabel
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span>
+                    : <span className="text-xs text-muted-foreground/50">—</span>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Doc handover</span>
+                  {handoverLabel
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span>
+                    : <span className="text-xs text-muted-foreground/50">—</span>}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Returning-specific fields */}
+          {step.stepName === "returning" && (() => {
+            const yesNo = (val: string | null | undefined, invertGood?: boolean) => {
+              if (!val) return <span className="text-xs text-muted-foreground/50">—</span>;
+              const isGood = invertGood ? val === "no" : val === "yes";
+              return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${isGood ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{val === "yes" ? "Yes" : "No"}</span>;
+            };
+            return (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Client copy</span>
+                  {yesNo(step.clientCopyReceived)}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">HDD received</span>
+                  {yesNo(step.hddReceivedByClient)}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Doc signed</span>
+                  {yesNo(step.handoverDocumentSigned)}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground w-24 shrink-0">Unreturned</span>
+                  {yesNo(step.unreturnedMaterials, true)}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+        {step.notes && <p className="text-xs text-muted-foreground mt-2 italic border-t border-border/50 pt-2">{step.notes}</p>}
       </div>
 
       {/* Staff: show lock badge on steps that aren't theirs */}
@@ -222,40 +324,80 @@ function WorkflowStepCard({
               )}
               {splitConfig ? (
                 <div className="space-y-3">
-                  <div>
-                    <Label className="flex items-center gap-1">
-                      {splitConfig.primary}
-                      <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={itemCount}
-                      onChange={e => { setItemCount(e.target.value); setItemCountError(""); }}
-                      placeholder="0"
-                      className={`mt-1 ${itemCountError ? "border-destructive" : ""}`}
-                    />
-                    {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
-                  </div>
-                  <div>
-                    <Label className="flex items-center gap-1">
-                      {splitConfig.secondary}
-                      <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={itemCountSecondary}
-                      onChange={e => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
-                      placeholder="0"
-                      className={`mt-1 ${itemCountSecondaryError ? "border-destructive" : ""}`}
-                    />
-                    {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="flex items-center gap-1">
+                        {splitConfig.primary}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={itemCount}
+                        onChange={e => { setItemCount(e.target.value); setItemCountError(""); }}
+                        placeholder="0"
+                        className={`mt-1 ${itemCountError ? "border-destructive" : ""}`}
+                      />
+                      {itemCountError && <p className="text-xs text-destructive mt-1">{itemCountError}</p>}
+                    </div>
+                    <div>
+                      <Label className="flex items-center gap-1">
+                        {splitConfig.secondary}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={itemCountSecondary}
+                        onChange={e => { setItemCountSecondary(e.target.value); setItemCountSecondaryError(""); }}
+                        placeholder="0"
+                        className={`mt-1 ${itemCountSecondaryError ? "border-destructive" : ""}`}
+                      />
+                      {itemCountSecondaryError && <p className="text-xs text-destructive mt-1">{itemCountSecondaryError}</p>}
+                    </div>
                   </div>
                   {itemCount !== "" && itemCountSecondary !== "" && !isNaN(parseInt(itemCount)) && !isNaN(parseInt(itemCountSecondary)) && (
                     <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-md">
                       Total: <span className="font-semibold text-foreground">{parseInt(itemCount) + parseInt(itemCountSecondary)}</span> items
                     </p>
+                  )}
+                  {/* QC-only additional fields */}
+                  {isQcStep && (
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <Label className="flex items-center gap-1">
+                          Copy for client?
+                          <span className="text-destructive">*</span>
+                        </Label>
+                        <Select value={copyForClient} onValueChange={v => { setCopyForClient(v); setCopyForClientError(""); }}>
+                          <SelectTrigger className={`mt-1 ${copyForClientError ? "border-destructive" : ""}`}>
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ready">Ready</SelectItem>
+                            <SelectItem value="later">Later</SelectItem>
+                            <SelectItem value="not_yet">Not Yet</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {copyForClientError && <p className="text-xs text-destructive mt-1">{copyForClientError}</p>}
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-1">
+                          Storage prepared?
+                          <span className="text-destructive">*</span>
+                        </Label>
+                        <Select value={storagePrepared} onValueChange={v => { setStoragePrepared(v); setStoragePreparedError(""); }}>
+                          <SelectTrigger className={`mt-1 ${storagePreparedError ? "border-destructive" : ""}`}>
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ptad">PTAD</SelectItem>
+                            <SelectItem value="client">Client</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {storagePreparedError && <p className="text-xs text-destructive mt-1">{storagePreparedError}</p>}
+                      </div>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -277,6 +419,113 @@ function WorkflowStepCard({
                   )}
                 </div>
               )}
+              {/* Returning-only additional fields */}
+              {isReturningStep && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      Client copy received?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={clientCopyReceived} onValueChange={v => { setClientCopyReceived(v); setClientCopyReceivedError(""); }}>
+                      <SelectTrigger className={`mt-1 ${clientCopyReceivedError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {clientCopyReceivedError && <p className="text-xs text-destructive mt-1">{clientCopyReceivedError}</p>}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      HDD received by client?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={hddReceivedByClient} onValueChange={v => { setHddReceivedByClient(v); setHddReceivedByClientError(""); }}>
+                      <SelectTrigger className={`mt-1 ${hddReceivedByClientError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {hddReceivedByClientError && <p className="text-xs text-destructive mt-1">{hddReceivedByClientError}</p>}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      Handover document signed?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={handoverDocumentSigned} onValueChange={v => { setHandoverDocumentSigned(v); setHandoverDocumentSignedError(""); }}>
+                      <SelectTrigger className={`mt-1 ${handoverDocumentSignedError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {handoverDocumentSignedError && <p className="text-xs text-destructive mt-1">{handoverDocumentSignedError}</p>}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      Unreturned materials?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={unreturnedMaterials} onValueChange={v => { setUnreturnedMaterials(v); setUnreturnedMaterialsError(""); }}>
+                      <SelectTrigger className={`mt-1 ${unreturnedMaterialsError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {unreturnedMaterialsError && <p className="text-xs text-destructive mt-1">{unreturnedMaterialsError}</p>}
+                  </div>
+                </div>
+              )}
+              {/* Repacking-only additional fields */}
+              {isRepackingStep && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      HDD ready?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={hddReady} onValueChange={v => { setHddReady(v); setHddReadyError(""); }}>
+                      <SelectTrigger className={`mt-1 ${hddReadyError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="later">Later</SelectItem>
+                        <SelectItem value="not_yet">Not Yet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {hddReadyError && <p className="text-xs text-destructive mt-1">{hddReadyError}</p>}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1">
+                      Document handover?
+                      <span className="text-destructive">*</span>
+                    </Label>
+                    <Select value={documentHandover} onValueChange={v => { setDocumentHandover(v); setDocumentHandoverError(""); }}>
+                      <SelectTrigger className={`mt-1 ${documentHandoverError ? "border-destructive" : ""}`}>
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="not_yet">Not Yet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {documentHandoverError && <p className="text-xs text-destructive mt-1">{documentHandoverError}</p>}
+                  </div>
+                </div>
+              )}
               <div>
                 <Label>Notes</Label>
                 <Textarea
@@ -287,6 +536,11 @@ function WorkflowStepCard({
                   className="mt-1"
                 />
               </div>
+              {isRepackingStep && selectedStatus === "completed" && documentHandover === "not_yet" && (
+                <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+                  Document handover must not be "Not Yet" to mark as Completed.
+                </p>
+              )}
               <Button
                 className="w-full"
                 disabled={updateMutation.isPending}
@@ -317,6 +571,30 @@ function WorkflowStepCard({
                     }
                     countSecondary = s;
                   }
+                  if (isQcStep) {
+                    if (!copyForClient) { setCopyForClientError("Required"); return; }
+                    if (!storagePrepared) { setStoragePreparedError("Required"); return; }
+                  }
+                  if (isRepackingStep) {
+                    if (!hddReady) { setHddReadyError("Required"); return; }
+                    if (!documentHandover) { setDocumentHandoverError("Required"); return; }
+                    if (selectedStatus === "completed" && documentHandover === "not_yet") {
+                      setDocumentHandoverError("Must not be 'Not Yet' to mark as Completed");
+                      return;
+                    }
+                  }
+                  if (isReturningStep) {
+                    if (!clientCopyReceived) { setClientCopyReceivedError("Required"); return; }
+                    if (!hddReceivedByClient) { setHddReceivedByClientError("Required"); return; }
+                    if (!handoverDocumentSigned) { setHandoverDocumentSignedError("Required"); return; }
+                    if (!unreturnedMaterials) { setUnreturnedMaterialsError("Required"); return; }
+                    if (selectedStatus === "completed") {
+                      if (clientCopyReceived !== "yes") { setClientCopyReceivedError("Must be 'Yes' to mark as Completed"); return; }
+                      if (hddReceivedByClient !== "yes") { setHddReceivedByClientError("Must be 'Yes' to mark as Completed"); return; }
+                      if (handoverDocumentSigned !== "yes") { setHandoverDocumentSignedError("Must be 'Yes' to mark as Completed"); return; }
+                      if (unreturnedMaterials !== "no") { setUnreturnedMaterialsError("Must be 'No' (no leftover items) to mark as Completed"); return; }
+                    }
+                  }
                   updateMutation.mutate({
                     id: boxId,
                     data: {
@@ -326,6 +604,9 @@ function WorkflowStepCard({
                       notes: notes || null,
                       itemCount: count,
                       ...(countSecondary !== undefined ? { itemCountSecondary: countSecondary } : {}),
+                      ...(isQcStep ? { copyForClient: copyForClient || null, storagePrepared: storagePrepared || null } : {}),
+                      ...(isRepackingStep ? { hddReady: hddReady || null, documentHandover: documentHandover || null } : {}),
+                      ...(isReturningStep ? { clientCopyReceived: clientCopyReceived || null, hddReceivedByClient: hddReceivedByClient || null, handoverDocumentSigned: handoverDocumentSigned || null, unreturnedMaterials: unreturnedMaterials || null } : {}),
                     },
                   });
                 }}
@@ -358,7 +639,8 @@ const PRIORITY_LEVELS = [
 
 const CUSTODY_TYPES = [
   { value: "loan", label: "On Loan (Borrowed)" },
-  { value: "owned", label: "Owned (Acquired)" },
+  { value: "ptad", label: "PTAD (Acquired)" },
+  { value: "project", label: "Project (Temporary)" },
 ] as const;
 
 const editSchema = z.object({
@@ -368,11 +650,13 @@ const editSchema = z.object({
   status: z.enum(["received", "in_progress", "completed", "returned"]).optional(),
   materialTypes: z.array(z.enum(["newspaper", "maps", "books", "magazine", "archives", "heritage_items"])).optional(),
   priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
-  custodyType: z.enum(["loan", "owned"]).optional(),
+  custodyType: z.enum(["loan", "ptad", "project"]).optional(),
   description: z.string().optional(),
   location: z.string().optional(),
   archiveYear: z.string().optional(),
-  totalItems: z.coerce.number().int().min(0).optional().or(z.literal("")),
+  totalBoxes: z.coerce.number().int().min(1).optional().or(z.literal("")),
+  totalItems: z.coerce.number().int().min(1).optional().or(z.literal("")),
+  unknownItems: z.boolean().optional(),
   cost: z.coerce.number().min(0).optional().or(z.literal("")),
   notes: z.string().optional(),
   photoLink: z.string().optional(),
@@ -382,8 +666,11 @@ const editSchema = z.object({
   if (!data.collectionsOwner?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Collections owner is required", path: ["collectionsOwner"] });
   }
-  if (data.totalItems === undefined || data.totalItems === "") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required", path: ["totalItems"] });
+  if (data.totalBoxes === undefined || data.totalBoxes === "") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total boxes is required", path: ["totalBoxes"] });
+  }
+  if (!data.unknownItems && (data.totalItems === undefined || data.totalItems === "")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required (or check Unknown)", path: ["totalItems"] });
   }
 });
 
@@ -406,6 +693,7 @@ type BoxData = {
   description?: string | null;
   location?: string | null;
   archiveYear?: string | null;
+  totalBoxes?: number | null;
   totalItems?: number | null;
   cost?: string | null;
   notes?: string | null;
@@ -423,6 +711,7 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
   const [displayCost, setDisplayCost] = useState(
     box.cost ? formatRupiah(String(Math.round(parseFloat(box.cost)))) : ""
   );
+  const [unknownItems, setUnknownItems] = useState(box.totalItems == null && box.totalBoxes != null);
   const { toast } = useToast();
 
   const form = useForm<EditFormValues>({
@@ -438,7 +727,9 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
       description: box.description ?? "",
       location: box.location ?? "",
       archiveYear: box.archiveYear ?? "",
+      totalBoxes: box.totalBoxes ?? "",
       totalItems: box.totalItems ?? "",
+      unknownItems: box.totalItems == null && box.totalBoxes != null,
       cost: box.cost ? parseFloat(box.cost) : "",
       notes: box.notes ?? "",
       photoLink: box.photoLink ?? "",
@@ -474,7 +765,8 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
         description: values.description || undefined,
         location: values.location || undefined,
         archiveYear: values.archiveYear || undefined,
-        totalItems: values.totalItems !== "" ? Number(values.totalItems) : undefined,
+        totalBoxes: values.totalBoxes !== "" ? Number(values.totalBoxes) : undefined,
+        totalItems: values.unknownItems ? null : (values.totalItems !== "" ? Number(values.totalItems) : undefined),
         cost: values.cost !== "" ? Number(values.cost) : null,
         notes: values.notes || undefined,
         photoLink: values.photoLink || null,
@@ -620,19 +912,40 @@ function EditDetailsDialog({ box, onUpdated, autoOpen = false }: { box: BoxData;
               )} />
             </div>
 
+            <FormField control={form.control} name="archiveYear" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Periode</FormLabel>
+                <FormControl><Input placeholder="1854-1930" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
             <div className="grid grid-cols-2 gap-3">
-              <FormField control={form.control} name="archiveYear" render={({ field }) => (
+              <FormField control={form.control} name="totalBoxes" render={({ field }) => (
                 <FormItem>
-              <FormLabel>Periode <span className="text-destructive">*</span></FormLabel>
-              <FormControl><Input placeholder="1854-1930" {...field} /></FormControl>
+                  <FormLabel>Total Boxes <span className="text-destructive">*</span></FormLabel>
+                  <FormControl><Input type="number" min={1} placeholder="0" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
 
               <FormField control={form.control} name="totalItems" render={({ field }) => (
                 <FormItem>
-              <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
-              <FormControl><Input type="number" placeholder="0" {...field} /></FormControl>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
+                    <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+                      <Checkbox
+                        checked={unknownItems}
+                        onCheckedChange={(v) => {
+                          setUnknownItems(!!v);
+                          form.setValue("unknownItems", !!v);
+                          if (v) form.setValue("totalItems", "");
+                        }}
+                      />
+                      Unknown
+                    </label>
+                  </div>
+                  <FormControl><Input type="number" min={0} placeholder="0" disabled={unknownItems} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -939,7 +1252,7 @@ export default function BoxDetailPage() {
             {box.custodyType && (
               <div>
                 <span className="text-muted-foreground text-xs uppercase tracking-wide mb-1 block">Custody Type</span>
-                <p className="font-medium">{box.custodyType === "loan" ? "On Loan" : "Owned"}</p>
+                <p className="font-medium">{box.custodyType === "loan" ? "On Loan" : box.custodyType === "ptad" ? "PTAD" : box.custodyType === "project" ? "Project" : box.custodyType}</p>
               </div>
             )}
             {box.description && (
@@ -964,12 +1277,23 @@ export default function BoxDetailPage() {
                 <p className="font-medium">{box.archiveYear}</p>
               </div>
             )}
-            {box.totalItems !== undefined && box.totalItems !== null && (
+            {box.totalBoxes !== undefined && box.totalBoxes !== null && (
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide mb-1 block">Total Boxes</span>
+                <p className="font-medium">{box.totalBoxes}</p>
+              </div>
+            )}
+            {box.totalItems !== undefined && box.totalItems !== null ? (
               <div>
                 <span className="text-muted-foreground text-xs uppercase tracking-wide mb-1 block">Total Items</span>
                 <p className="font-medium">{box.totalItems}</p>
               </div>
-            )}
+            ) : box.totalBoxes !== undefined && box.totalBoxes !== null ? (
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide mb-1 block">Total Items</span>
+                <p className="font-medium text-muted-foreground italic">Unknown</p>
+              </div>
+            ) : null}
             {isAdmin && box.cost && (
               <div>
                 <span className="text-muted-foreground text-xs uppercase tracking-wide mb-1 block">Price / Cost</span>

@@ -18,7 +18,8 @@ export interface UpdateBoxBody {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   notes?: string;
   status?: UpdateBoxBodyStatus;
   outDate?: Date | null;

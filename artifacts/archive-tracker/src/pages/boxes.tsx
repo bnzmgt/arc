@@ -17,7 +17,7 @@ import { STEP_LABELS, STEP_COLORS } from "@/lib/steps";
 import { useAuth } from "@/contexts/auth";
 import * as XLSX from "xlsx";
 
-type ExportFilter = "all" | "owned" | "loan";
+type ExportFilter = "all" | "ptad" | "loan" | "project";
 
 const STATUS_LABELS: Record<string, string> = {
   received: "Received",
@@ -27,8 +27,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CUSTODY_LABELS: Record<string, string> = {
-  owned: "Owned",
+  ptad: "PTAD",
   loan: "On Loan",
+  project: "Project",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -66,6 +67,7 @@ function boxToRow(box: Box) {
     "Priority": box.priority ? (PRIORITY_LABELS[box.priority] ?? box.priority) : "",
     "Description": box.description ?? "",
     "Notes": box.notes ?? "",
+    "Total Boxes": box.totalBoxes ?? "",
     "Date In": formatDate(box.inDate),
     "Deadline": formatDate(box.deadline),
     "Date Out": formatDate(box.outDate),
@@ -73,10 +75,12 @@ function boxToRow(box: Box) {
 }
 
 function exportToExcel(boxes: Box[], filter: ExportFilter) {
-  const filtered = filter === "owned"
-    ? boxes.filter(b => b.custodyType === "owned")
+  const filtered = filter === "ptad"
+    ? boxes.filter(b => b.custodyType === "ptad")
     : filter === "loan"
     ? boxes.filter(b => b.custodyType === "loan")
+    : filter === "project"
+    ? boxes.filter(b => b.custodyType === "project")
     : boxes;
 
   const rows = filtered.map(boxToRow);
@@ -91,10 +95,10 @@ function exportToExcel(boxes: Box[], filter: ExportFilter) {
   ws["!cols"] = colWidths;
 
   const wb = XLSX.utils.book_new();
-  const sheetName = filter === "owned" ? "Owned Boxes" : filter === "loan" ? "Loan Boxes" : "All Boxes";
+  const sheetName = filter === "ptad" ? "PTAD Boxes" : filter === "loan" ? "Loan Boxes" : filter === "project" ? "Project Boxes" : "All Boxes";
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-  const suffix = filter === "owned" ? "_owned" : filter === "loan" ? "_loan" : "_all";
+  const suffix = filter === "ptad" ? "_ptad" : filter === "loan" ? "_loan" : filter === "project" ? "_project" : "_all";
   const dateStr = format(new Date(), "yyyy-MM-dd");
   XLSX.writeFile(wb, `arciflow_boxes${suffix}_${dateStr}.xlsx`);
 }
@@ -221,10 +225,16 @@ export default function BoxesPage() {
                 All Boxes
                 <span className="ml-auto text-xs text-muted-foreground">{allBoxes?.length ?? 0}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "owned")}>
-                Owned Only
+              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "ptad")}>
+                PTAD Only
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {allBoxes?.filter(b => b.custodyType === "owned").length ?? 0}
+                  {allBoxes?.filter(b => b.custodyType === "ptad").length ?? 0}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "project")}>
+                Project Only
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {allBoxes?.filter(b => b.custodyType === "project").length ?? 0}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportToExcel(allBoxes ?? [], "loan")}>

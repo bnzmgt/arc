@@ -12,5 +12,6 @@ export type BoxCustodyType =
 
 export const BoxCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;

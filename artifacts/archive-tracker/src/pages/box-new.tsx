@@ -34,7 +34,8 @@ const PRIORITY_LEVELS = [
 
 const CUSTODY_TYPES = [
   { value: "loan", label: "On Loan (Borrowed)" },
-  { value: "owned", label: "Owned (Acquired)" },
+  { value: "ptad", label: "PTAD (Acquired)" },
+  { value: "project", label: "Project (Temporary)" },
 ] as const;
 
 const schema = z.object({
@@ -43,11 +44,13 @@ const schema = z.object({
   placeOfOrigin: z.string().optional(),
   materialTypes: z.array(z.enum(["newspaper", "maps", "books", "magazine", "archives", "heritage_items"])).min(1, "Select at least one material type"),
   priority: z.enum(["P0", "P1", "P2", "P3"], { required_error: "Priority is required" }),
-  custodyType: z.enum(["loan", "owned"], { required_error: "Custody type is required" }),
+  custodyType: z.enum(["loan", "ptad", "project"], { required_error: "Custody type is required" }),
   description: z.string().optional(),
   location: z.string().optional(),
   archiveYear: z.string().optional(),
-  totalItems: z.coerce.number().int().min(0).optional().or(z.literal("")),
+  totalBoxes: z.coerce.number().int().min(1).optional().or(z.literal("")),
+  totalItems: z.coerce.number().int().min(1).optional().or(z.literal("")),
+  unknownItems: z.boolean().optional(),
   cost: z.coerce.number().min(0).optional().or(z.literal("")),
   notes: z.string().optional(),
   photoLink: z.string().optional(),
@@ -57,8 +60,11 @@ const schema = z.object({
   if (!data.collectionsOwner?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Collections owner is required", path: ["collectionsOwner"] });
   }
-  if (data.totalItems === undefined || data.totalItems === "") {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required", path: ["totalItems"] });
+  if (data.totalBoxes === undefined || data.totalBoxes === "") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total boxes is required", path: ["totalBoxes"] });
+  }
+  if (!data.unknownItems && (data.totalItems === undefined || data.totalItems === "")) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Total items is required (or check Unknown)", path: ["totalItems"] });
   }
 });
 
@@ -74,6 +80,7 @@ export default function BoxNewPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [displayCost, setDisplayCost] = useState("");
+  const [unknownItems, setUnknownItems] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -87,7 +94,9 @@ export default function BoxNewPage() {
       description: "",
       location: "",
       archiveYear: "",
+      totalBoxes: "",
       totalItems: "",
+      unknownItems: false,
       cost: "",
       notes: "",
       photoLink: "",
@@ -121,7 +130,8 @@ export default function BoxNewPage() {
         description: values.description || undefined,
         location: values.location || undefined,
         archiveYear: values.archiveYear || undefined,
-        totalItems: values.totalItems !== "" ? Number(values.totalItems) : undefined,
+        totalBoxes: values.totalBoxes !== "" ? Number(values.totalBoxes) : undefined,
+        totalItems: values.unknownItems ? null : (values.totalItems !== "" ? Number(values.totalItems) : undefined),
         cost: values.cost !== "" ? Number(values.cost) : undefined,
         notes: values.notes || undefined,
         photoLink: values.photoLink || undefined,
@@ -141,7 +151,7 @@ export default function BoxNewPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">New Box Details</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">The box code will be generated automatically based on custody type (OWN / LOA) and year</p>
+          <p className="text-sm text-muted-foreground mt-0.5">The box code will be generated automatically based on custody type (LOA / PTAD / PRJ) and year</p>
         </div>
       </div>
 
@@ -338,15 +348,29 @@ export default function BoxNewPage() {
                 <div className="flex-1 h-px bg-border" />
               </div>
 
+              <FormField
+                control={form.control}
+                name="archiveYear"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Periode</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. 1854-1930" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="archiveYear"
+                  name="totalBoxes"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Periode</FormLabel>
+                      <FormLabel>Total Boxes <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. 1854-1930" {...field} />
+                        <Input type="number" min={1} placeholder="0" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -357,9 +381,22 @@ export default function BoxNewPage() {
                   name="totalItems"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Total Items <span className="text-destructive">*</span></FormLabel>
+                        <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+                          <Checkbox
+                            checked={unknownItems}
+                            onCheckedChange={(v) => {
+                              setUnknownItems(!!v);
+                              form.setValue("unknownItems", !!v);
+                              if (v) form.setValue("totalItems", "");
+                            }}
+                          />
+                          Unknown
+                        </label>
+                      </div>
                       <FormControl>
-                        <Input type="number" placeholder="0" {...field} />
+                        <Input type="number" min={0} placeholder="0" disabled={unknownItems} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -82,7 +82,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">
           <p>Arciflow — Archive Tracking & Workflow Management System</p>
-          <p>Version 1.2.0</p>
+          <p>Version 1.3.0</p>
           <p className="mt-3">
             Scan QR codes on printed labels to update workflow status from the field.
             Admins manage full CRUD and workflow control from this dashboard.

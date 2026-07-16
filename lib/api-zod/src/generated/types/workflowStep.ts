@@ -22,5 +22,13 @@ export interface WorkflowStep {
   notes?: string | null;
   itemCount?: number | null;
   itemCountSecondary?: number | null;
+  copyForClient?: string | null;
+  storagePrepared?: string | null;
+  hddReady?: string | null;
+  documentHandover?: string | null;
+  clientCopyReceived?: string | null;
+  hddReceivedByClient?: string | null;
+  handoverDocumentSigned?: string | null;
+  unreturnedMaterials?: string | null;
   updatedAt: Date;
 }

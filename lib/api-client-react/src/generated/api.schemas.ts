@@ -45,7 +45,8 @@ export type BoxCustodyType =
 
 export const BoxCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;
 
 export interface Box {
@@ -57,7 +58,8 @@ export interface Box {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   status: BoxStatus;
   ticketCode: string;
   notes?: string;
@@ -103,7 +105,8 @@ export type CreateBoxBodyCustodyType =
 
 export const CreateBoxBodyCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;
 
 export interface CreateBoxBody {
@@ -114,7 +117,8 @@ export interface CreateBoxBody {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   notes?: string;
   photoLink?: string | null;
   inDate?: string;
@@ -164,7 +168,8 @@ export type UpdateBoxBodyCustodyType =
 
 export const UpdateBoxBodyCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;
 
 export interface UpdateBoxBody {
@@ -175,7 +180,8 @@ export interface UpdateBoxBody {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   notes?: string;
   status?: UpdateBoxBodyStatus;
   outDate?: string | null;
@@ -224,6 +230,14 @@ export interface WorkflowStep {
   notes?: string | null;
   itemCount?: number | null;
   itemCountSecondary?: number | null;
+  copyForClient?: string | null;
+  storagePrepared?: string | null;
+  hddReady?: string | null;
+  documentHandover?: string | null;
+  clientCopyReceived?: string | null;
+  hddReceivedByClient?: string | null;
+  handoverDocumentSigned?: string | null;
+  unreturnedMaterials?: string | null;
   updatedAt: string;
 }
 
@@ -256,6 +270,14 @@ export interface UpdateWorkflowBody {
   notes?: string | null;
   itemCount?: number | null;
   itemCountSecondary?: number | null;
+  copyForClient?: string | null;
+  storagePrepared?: string | null;
+  hddReady?: string | null;
+  documentHandover?: string | null;
+  clientCopyReceived?: string | null;
+  hddReceivedByClient?: string | null;
+  handoverDocumentSigned?: string | null;
+  unreturnedMaterials?: string | null;
 }
 
 export interface Ticket {
@@ -387,7 +409,7 @@ export interface ItemDiscrepancyItem {
   id: number;
   boxCode: string;
   clientName: string;
-  totalItems: number;
+  totalItems?: number | null;
   stepName: string;
   stepItemCount: number;
   status: string;

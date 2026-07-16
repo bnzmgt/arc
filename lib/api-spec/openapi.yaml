@@ -471,8 +471,12 @@ components:
           type: string
         archiveYear:
           type: string
+        totalBoxes:
+          type: integer
+          nullable: true
         totalItems:
           type: integer
+          nullable: true
         status:
           type: string
           enum: [received, in_progress, completed, returned]
@@ -499,7 +503,7 @@ components:
           nullable: true
         custodyType:
           type: string
-          enum: [loan, owned]
+          enum: [loan, ptad, project]
           nullable: true
         deadline:
           type: string
@@ -548,8 +552,12 @@ components:
           type: string
         archiveYear:
           type: string
+        totalBoxes:
+          type: integer
+          nullable: true
         totalItems:
           type: integer
+          nullable: true
         notes:
           type: string
         photoLink:
@@ -569,7 +577,7 @@ components:
           nullable: true
         custodyType:
           type: string
-          enum: [loan, owned]
+          enum: [loan, ptad, project]
           nullable: true
         deadline:
           type: string
@@ -600,8 +608,12 @@ components:
           type: string
         archiveYear:
           type: string
+        totalBoxes:
+          type: integer
+          nullable: true
         totalItems:
           type: integer
+          nullable: true
         notes:
           type: string
         status:
@@ -622,7 +634,7 @@ components:
           nullable: true
         custodyType:
           type: string
-          enum: [loan, owned]
+          enum: [loan, ptad, project]
           nullable: true
         deadline:
           type: string
@@ -680,6 +692,30 @@ components:
         itemCountSecondary:
           type: integer
           nullable: true
+        copyForClient:
+          type: string
+          nullable: true
+        storagePrepared:
+          type: string
+          nullable: true
+        hddReady:
+          type: string
+          nullable: true
+        documentHandover:
+          type: string
+          nullable: true
+        clientCopyReceived:
+          type: string
+          nullable: true
+        hddReceivedByClient:
+          type: string
+          nullable: true
+        handoverDocumentSigned:
+          type: string
+          nullable: true
+        unreturnedMaterials:
+          type: string
+          nullable: true
         updatedAt:
           type: string
           format: date-time
@@ -711,6 +747,30 @@ components:
           nullable: true
         itemCountSecondary:
           type: integer
+          nullable: true
+        copyForClient:
+          type: string
+          nullable: true
+        storagePrepared:
+          type: string
+          nullable: true
+        hddReady:
+          type: string
+          nullable: true
+        documentHandover:
+          type: string
+          nullable: true
+        clientCopyReceived:
+          type: string
+          nullable: true
+        hddReceivedByClient:
+          type: string
+          nullable: true
+        handoverDocumentSigned:
+          type: string
+          nullable: true
+        unreturnedMaterials:
+          type: string
           nullable: true
       required:
         - stepName
@@ -952,6 +1012,7 @@ components:
           type: string
         totalItems:
           type: integer
+          nullable: true
         stepName:
           type: string
         stepItemCount:
@@ -965,7 +1026,6 @@ components:
         - id
         - boxCode
         - clientName
-        - totalItems
         - stepName
         - stepItemCount
         - status

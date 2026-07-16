@@ -12,5 +12,6 @@ export type UpdateBoxBodyCustodyType =
 
 export const UpdateBoxBodyCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;

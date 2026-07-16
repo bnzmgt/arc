@@ -105,12 +105,22 @@ router.get("/stats/urgent-alerts", async (_req, res): Promise<void> => {
     .where(
       and(
         isNotNull(workflowStepsTable.itemCount),
-        isNotNull(boxesTable.totalItems),
-        sql`${workflowStepsTable.itemCount} + COALESCE(${workflowStepsTable.itemCountSecondary}, 0) <> ${boxesTable.totalItems}`
+        not(inArray(boxesTable.status, ["completed", "returned"])),
+        sql`(
+          (${boxesTable.totalItems} IS NOT NULL
+           AND ${workflowStepsTable.itemCount} + COALESCE(${workflowStepsTable.itemCountSecondary}, 0) <> ${boxesTable.totalItems})
+          OR EXISTS (
+            SELECT 1 FROM workflow_steps ws2
+            WHERE ws2.box_id = ${workflowStepsTable.boxId}
+              AND ws2.item_count IS NOT NULL
+              AND ws2.item_count + COALESCE(ws2.item_count_secondary, 0)
+                  != ${workflowStepsTable.itemCount} + COALESCE(${workflowStepsTable.itemCountSecondary}, 0)
+          )
+        )`
       )
     )
     .orderBy(boxesTable.boxCode)
-    .limit(30);
+    .limit(50);
 
   res.json({
     overdueBoxes,

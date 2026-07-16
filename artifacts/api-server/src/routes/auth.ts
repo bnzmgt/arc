@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, adminAccountsTable, usersTable, userRolesTable, rolesTable } from "@workspace/db";
+import { db, adminAccountsTable, activityLogTable, usersTable, userRolesTable, rolesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -53,6 +53,13 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   req.session.adminUsername = account.username;
   req.session.adminDisplayName = account.displayName;
   req.session.accountLevel = account.accountLevel ?? "user";
+
+  await db.insert(activityLogTable).values({
+    boxId: null,
+    action: `Login: ${account.displayName} (${account.accountLevel ?? "user"})`,
+    stepName: null,
+    performedByAdminId: account.id,
+  });
 
   res.json({
     id: account.id,

@@ -17,7 +17,8 @@ export interface CreateBoxBody {
   description?: string;
   location?: string;
   archiveYear?: string;
-  totalItems?: number;
+  totalBoxes?: number | null;
+  totalItems?: number | null;
   notes?: string;
   photoLink?: string | null;
   inDate?: Date;

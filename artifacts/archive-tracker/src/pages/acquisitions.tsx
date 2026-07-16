@@ -25,7 +25,7 @@ const MATERIAL_LABELS: Record<string, string> = {
   newspaper: "Newspaper", maps: "Maps", books: "Books",
   magazine: "Magazine", archives: "Archives", heritage_items: "Heritage Items",
 };
-const CUSTODY_LABELS: Record<string, string> = { owned: "Owned", loan: "On Loan" };
+const CUSTODY_LABELS: Record<string, string> = { ptad: "PTAD", loan: "On Loan", project: "Project" };
 const STATUS_LABELS: Record<string, string> = {
   received: "Received", in_progress: "In Progress",
   completed: "Completed", returned: "Returned",
@@ -177,7 +177,7 @@ export default function CollectionsCostPage() {
     });
     return Object.entries(map)
       .filter(([, v]) => v > 0)
-      .map(([name, value]) => ({ name: name === "loan" ? "On Loan" : name === "owned" ? "Owned" : "Unknown", value, raw: name }));
+      .map(([name, value]) => ({ name: CUSTODY_LABELS[name] ?? name, value, raw: name }));
   }, [costBoxes]);
 
   const years = useMemo(() => {
@@ -620,7 +620,7 @@ export default function CollectionsCostPage() {
                             ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
                             : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                         }`}>
-                          {box.custodyType === "loan" ? "On Loan" : "Owned"}
+                          {CUSTODY_LABELS[box.custodyType] ?? box.custodyType}
                         </span>
                       ) : <span className="text-muted-foreground text-sm">—</span>}
                     </TableCell>

@@ -16,15 +16,15 @@ type GroupedDiscrepancy = {
   id: number;
   boxCode: string;
   clientName: string;
-  totalItems: number;
+  totalItems: number | null;
   steps: { stepName: string; stepItemCount: number }[];
 };
 
-function groupDiscrepancies(items: { id: number; boxCode: string; clientName: string; totalItems: number; stepName: string; stepItemCount: number }[]): GroupedDiscrepancy[] {
+function groupDiscrepancies(items: { id: number; boxCode: string; clientName: string; totalItems?: number | null; stepName: string; stepItemCount: number }[]): GroupedDiscrepancy[] {
   const map = new Map<number, GroupedDiscrepancy>();
   for (const item of items) {
     if (!map.has(item.id)) {
-      map.set(item.id, { id: item.id, boxCode: item.boxCode, clientName: item.clientName, totalItems: item.totalItems, steps: [] });
+      map.set(item.id, { id: item.id, boxCode: item.boxCode, clientName: item.clientName, totalItems: item.totalItems ?? null, steps: [] });
     }
     map.get(item.id)!.steps.push({ stepName: item.stepName, stepItemCount: item.stepItemCount });
   }
@@ -127,7 +127,10 @@ export default function AlertsPage() {
                           <span className="font-mono text-xs font-semibold text-foreground shrink-0">{box.boxCode}</span>
                           <span className="text-sm text-muted-foreground truncate">{box.clientName}</span>
                         </div>
-                        <span className="text-sm font-semibold text-foreground shrink-0">declared {box.totalItems}</span>
+                        {box.totalItems != null
+                          ? <span className="text-sm font-semibold text-foreground shrink-0">declared {box.totalItems}</span>
+                          : <span className="text-sm text-muted-foreground italic shrink-0">items unknown</span>
+                        }
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {box.steps.map(s => (

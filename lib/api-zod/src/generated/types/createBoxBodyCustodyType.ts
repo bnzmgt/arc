@@ -12,5 +12,6 @@ export type CreateBoxBodyCustodyType =
 
 export const CreateBoxBodyCustodyType = {
   loan: "loan",
-  owned: "owned",
+  ptad: "ptad",
+  project: "project",
 } as const;

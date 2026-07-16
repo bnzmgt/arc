@@ -10,7 +10,7 @@ export interface ItemDiscrepancyItem {
   id: number;
   boxCode: string;
   clientName: string;
-  totalItems: number;
+  totalItems?: number | null;
   stepName: string;
   stepItemCount: number;
   status: string;

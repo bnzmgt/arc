@@ -7,7 +7,8 @@ import { format } from "date-fns";
 
 const CUSTODY_LABELS: Record<string, string> = {
   loan: "On Loan",
-  owned: "Owned",
+  ptad: "PTAD",
+  project: "Project",
 };
 
 function LabelContent() {
