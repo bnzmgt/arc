@@ -183,20 +183,20 @@ function WorkflowStepCard({
 
           {/* QC-specific fields */}
           {step.stepName === "qc" && (() => {
-            const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : null;
-            const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : null;
+            const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : step.copyForClient === "no" ? "Not Required" : null;
+            const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : step.storagePrepared === "no" ? "Not Required" : null;
             return (
               <>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground w-24 shrink-0">Copy for client</span>
                   {copyLabel
-                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span>
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.copyForClient === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span>
                     : <span className="text-xs text-muted-foreground/50">—</span>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground w-24 shrink-0">Storage</span>
                   {storageLabel
-                    ? <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">{storageLabel}</span>
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.storagePrepared === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"}`}>{storageLabel}</span>
                     : <span className="text-xs text-muted-foreground/50">—</span>}
                 </div>
               </>
@@ -205,20 +205,20 @@ function WorkflowStepCard({
 
           {/* Repacking-specific fields */}
           {step.stepName === "repacking" && (() => {
-            const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : null;
-            const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : null;
+            const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : step.hddReady === "no" ? "Not Required" : null;
+            const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : step.documentHandover === "no" ? "Not Required" : null;
             return (
               <>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground w-24 shrink-0">HDD ready</span>
                   {hddLabel
-                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span>
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.hddReady === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span>
                     : <span className="text-xs text-muted-foreground/50">—</span>}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground w-24 shrink-0">Doc handover</span>
                   {handoverLabel
-                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span>
+                    ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.documentHandover === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span>
                     : <span className="text-xs text-muted-foreground/50">—</span>}
                 </div>
               </>
@@ -229,6 +229,7 @@ function WorkflowStepCard({
           {step.stepName === "returning" && (() => {
             const yesNo = (val: string | null | undefined, invertGood?: boolean) => {
               if (!val) return <span className="text-xs text-muted-foreground/50">—</span>;
+              if (val === "not_required") return <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">Not Required</span>;
               const isGood = invertGood ? val === "no" : val === "yes";
               return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${isGood ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{val === "yes" ? "Yes" : "No"}</span>;
             };
@@ -377,6 +378,7 @@ function WorkflowStepCard({
                             <SelectItem value="ready">Ready</SelectItem>
                             <SelectItem value="later">Later</SelectItem>
                             <SelectItem value="not_yet">Not Yet</SelectItem>
+                            <SelectItem value="no">Not Required</SelectItem>
                           </SelectContent>
                         </Select>
                         {copyForClientError && <p className="text-xs text-destructive mt-1">{copyForClientError}</p>}
@@ -393,6 +395,7 @@ function WorkflowStepCard({
                           <SelectContent>
                             <SelectItem value="ptad">PTAD</SelectItem>
                             <SelectItem value="client">Client</SelectItem>
+                            <SelectItem value="no">Not Required</SelectItem>
                           </SelectContent>
                         </Select>
                         {storagePreparedError && <p className="text-xs text-destructive mt-1">{storagePreparedError}</p>}
@@ -434,6 +437,7 @@ function WorkflowStepCard({
                       <SelectContent>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="not_required">Not Required</SelectItem>
                       </SelectContent>
                     </Select>
                     {clientCopyReceivedError && <p className="text-xs text-destructive mt-1">{clientCopyReceivedError}</p>}
@@ -450,6 +454,7 @@ function WorkflowStepCard({
                       <SelectContent>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="not_required">Not Required</SelectItem>
                       </SelectContent>
                     </Select>
                     {hddReceivedByClientError && <p className="text-xs text-destructive mt-1">{hddReceivedByClientError}</p>}
@@ -466,6 +471,7 @@ function WorkflowStepCard({
                       <SelectContent>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="not_required">Not Required</SelectItem>
                       </SelectContent>
                     </Select>
                     {handoverDocumentSignedError && <p className="text-xs text-destructive mt-1">{handoverDocumentSignedError}</p>}
@@ -504,6 +510,7 @@ function WorkflowStepCard({
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="later">Later</SelectItem>
                         <SelectItem value="not_yet">Not Yet</SelectItem>
+                        <SelectItem value="no">Not Required</SelectItem>
                       </SelectContent>
                     </Select>
                     {hddReadyError && <p className="text-xs text-destructive mt-1">{hddReadyError}</p>}
@@ -520,6 +527,7 @@ function WorkflowStepCard({
                       <SelectContent>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="not_yet">Not Yet</SelectItem>
+                        <SelectItem value="no">Not Required</SelectItem>
                       </SelectContent>
                     </Select>
                     {documentHandoverError && <p className="text-xs text-destructive mt-1">{documentHandoverError}</p>}
@@ -573,13 +581,20 @@ function WorkflowStepCard({
                   }
                   if (isQcStep) {
                     if (!copyForClient) { setCopyForClientError("Required"); return; }
+                    if (selectedStatus === "completed" && copyForClient === "not_yet") {
+                      setCopyForClientError("Must not be 'Not Yet' to mark as Completed"); return;
+                    }
                     if (!storagePrepared) { setStoragePreparedError("Required"); return; }
                   }
                   if (isRepackingStep) {
                     if (!hddReady) { setHddReadyError("Required"); return; }
+                    if (selectedStatus === "completed" && hddReady === "not_yet") {
+                      setHddReadyError("Must be 'Yes', 'Later', or 'Not Required' to mark as Completed");
+                      return;
+                    }
                     if (!documentHandover) { setDocumentHandoverError("Required"); return; }
                     if (selectedStatus === "completed" && documentHandover === "not_yet") {
-                      setDocumentHandoverError("Must not be 'Not Yet' to mark as Completed");
+                      setDocumentHandoverError("Must be 'Yes' or 'Not Required' to mark as Completed");
                       return;
                     }
                   }
@@ -589,9 +604,9 @@ function WorkflowStepCard({
                     if (!handoverDocumentSigned) { setHandoverDocumentSignedError("Required"); return; }
                     if (!unreturnedMaterials) { setUnreturnedMaterialsError("Required"); return; }
                     if (selectedStatus === "completed") {
-                      if (clientCopyReceived !== "yes") { setClientCopyReceivedError("Must be 'Yes' to mark as Completed"); return; }
-                      if (hddReceivedByClient !== "yes") { setHddReceivedByClientError("Must be 'Yes' to mark as Completed"); return; }
-                      if (handoverDocumentSigned !== "yes") { setHandoverDocumentSignedError("Must be 'Yes' to mark as Completed"); return; }
+                      if (clientCopyReceived !== "yes" && clientCopyReceived !== "not_required") { setClientCopyReceivedError("Must be 'Yes' or 'Not Required' to mark as Completed"); return; }
+                      if (hddReceivedByClient !== "yes" && hddReceivedByClient !== "not_required") { setHddReceivedByClientError("Must be 'Yes' or 'Not Required' to mark as Completed"); return; }
+                      if (handoverDocumentSigned !== "yes" && handoverDocumentSigned !== "not_required") { setHandoverDocumentSignedError("Must be 'Yes' or 'Not Required' to mark as Completed"); return; }
                       if (unreturnedMaterials !== "no") { setUnreturnedMaterialsError("Must be 'No' (no leftover items) to mark as Completed"); return; }
                     }
                   }

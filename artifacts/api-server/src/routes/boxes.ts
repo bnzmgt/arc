@@ -285,6 +285,14 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
     const order = targetStep.stepOrder;
     if (order <= 4) {
       // Steps 1–4 (Cleaning, Cataloging, Scanning, QC) are parallel — no prerequisite
+      // QC: copyForClient must not be "not_yet" to complete
+      if (status === "completed" && targetStep.stepName === "qc") {
+        const effectiveCopyForClient = req.body.copyForClient !== undefined ? req.body.copyForClient : targetStep.copyForClient;
+        if (!effectiveCopyForClient || effectiveCopyForClient === "not_yet") {
+          res.status(422).json({ error: "Cannot complete QC: 'Copy for client' must be Ready, Later, or Not Required — not 'Not Yet'." });
+          return;
+        }
+      }
     } else if (order === 5) {
       // Repacking requires all 4 processing steps to be completed/skipped
       const firstFour = allSteps.filter(s => s.stepOrder <= 4);
@@ -304,6 +312,18 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
           res.status(422).json({ error: `Item count mismatch in preceding steps: ${detail}. Staff must recount and correct the item counts before completing Repacking.` });
           return;
         }
+        // HDD ready must not be "not_yet" to complete
+        const effectiveHddReady = req.body.hddReady !== undefined ? req.body.hddReady : targetStep.hddReady;
+        if (!effectiveHddReady || effectiveHddReady === "not_yet") {
+          res.status(422).json({ error: "Cannot complete Repacking: 'HDD ready' must be 'Yes', 'Later', or 'Not Required' — not 'Not Yet'." });
+          return;
+        }
+        // Document handover must be "yes" or "no" (Not Required) — not "not_yet"
+        const effectiveDocumentHandover = req.body.documentHandover !== undefined ? req.body.documentHandover : targetStep.documentHandover;
+        if (!effectiveDocumentHandover || effectiveDocumentHandover === "not_yet") {
+          res.status(422).json({ error: "Cannot complete Repacking: 'Document handover' must be 'Yes' or 'Not Required' — not 'Not Yet'." });
+          return;
+        }
       }
     } else if (order === 6) {
       // Returning requires Repacking to be completed/skipped
@@ -321,6 +341,22 @@ router.post("/boxes/:id/workflow", async (req, res): Promise<void> => {
         if (preceding.length >= 2 && uniqueCounts.size > 1) {
           const detail = preceding.map(s => `${s.stepName} (${effectiveCount(s)})`).join(", ");
           res.status(422).json({ error: `Item count mismatch in preceding steps: ${detail}. Staff must recount and correct the item counts before completing Returning.` });
+          return;
+        }
+        // clientCopyReceived, hddReceivedByClient, handoverDocumentSigned must be "yes" or "not_required"
+        const effCCR = req.body.clientCopyReceived !== undefined ? req.body.clientCopyReceived : targetStep.clientCopyReceived;
+        const effHDD = req.body.hddReceivedByClient !== undefined ? req.body.hddReceivedByClient : targetStep.hddReceivedByClient;
+        const effHDS = req.body.handoverDocumentSigned !== undefined ? req.body.handoverDocumentSigned : targetStep.handoverDocumentSigned;
+        if (!effCCR || (effCCR !== "yes" && effCCR !== "not_required")) {
+          res.status(422).json({ error: "Cannot complete Returning: 'Client copy received' must be 'Yes' or 'Not Required'." });
+          return;
+        }
+        if (!effHDD || (effHDD !== "yes" && effHDD !== "not_required")) {
+          res.status(422).json({ error: "Cannot complete Returning: 'HDD received by client' must be 'Yes' or 'Not Required'." });
+          return;
+        }
+        if (!effHDS || (effHDS !== "yes" && effHDS !== "not_required")) {
+          res.status(422).json({ error: "Cannot complete Returning: 'Handover document signed' must be 'Yes' or 'Not Required'." });
           return;
         }
       }

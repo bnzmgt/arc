@@ -193,27 +193,27 @@ export default function BoxesPage() {
     return s?.type === "soon";
   });
 
-  const tabs: { key: TabKey; label: string; count: number; color?: string }[] = [
-    { key: "active",    label: "Active",    count: activeBoxes.length },
-    { key: "completed", label: "Completed (Owned)", count: completedBoxes.length, color: "text-emerald-600" },
-    { key: "returned",  label: "Returned (Loan)",  count: returnedBoxes.length,  color: "text-slate-500" },
-    { key: "all",       label: "All",       count: allBoxes?.length ?? 0 },
+  const tabs: { key: TabKey; label: string; shortLabel?: string; count: number; color?: string }[] = [
+    { key: "active",    label: "Active",           count: activeBoxes.length },
+    { key: "completed", label: "Completed (Owned)", shortLabel: "Completed", count: completedBoxes.length, color: "text-emerald-600" },
+    { key: "returned",  label: "Returned (Loan)",   shortLabel: "Returned",  count: returnedBoxes.length,  color: "text-slate-500" },
+    { key: "all",       label: "All",               count: allBoxes?.length ?? 0 },
   ];
 
   return (
     <div className="space-y-5" data-testid="boxes-page">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Archive Boxes</h1>
-          <p className="text-sm text-muted-foreground mt-1">{allBoxes?.length ?? 0} boxes total</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Archive Boxes</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{allBoxes?.length ?? 0} boxes total</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Export dropdown — visible to all logged-in users */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" disabled={isLoading || !allBoxes?.length}>
-                <Download size={15} className="mr-2" />
-                Export Excel
+                <Download size={15} className="mr-0 sm:mr-2" />
+                <span className="hidden sm:inline">Export Excel</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -281,21 +281,21 @@ export default function BoxesPage() {
 
       {/* Status Tabs + Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-fit">
+        {/* Tabs — equal-width, always visible */}
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 w-full sm:w-auto">
           {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => { setTab(t.key); setPage(1); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
                 tab === t.key
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               data-testid={`tab-${t.key}`}
             >
-              {t.label}
-              <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
+              <span>{t.shortLabel ?? t.label}</span>
+              <span className={`text-xs rounded-full px-1 sm:px-1.5 py-0.5 font-semibold ${
                 tab === t.key
                   ? t.color ?? "bg-primary/10 text-primary"
                   : "bg-muted text-muted-foreground"
@@ -307,7 +307,7 @@ export default function BoxesPage() {
         </div>
 
         {/* Search */}
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-64 flex-shrink-0">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"

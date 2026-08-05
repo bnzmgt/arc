@@ -48,42 +48,58 @@ interface ScanUser {
   active?: string | boolean;
 }
 
+interface StepCurrentData {
+  status?: string | null;
+  notes?: string | null;
+  itemCount?: number | null;
+  itemCountSecondary?: number | null;
+  copyForClient?: string | null;
+  storagePrepared?: string | null;
+  hddReady?: string | null;
+  documentHandover?: string | null;
+  clientCopyReceived?: string | null;
+  hddReceivedByClient?: string | null;
+  handoverDocumentSigned?: string | null;
+  unreturnedMaterials?: string | null;
+}
+
 interface StepUpdateFormProps {
   stepName: string;
   boxId: number;
   userId: number | null;
   ticketCode: string;
+  currentStepData?: StepCurrentData;
   onSuccess: (stepName: string) => void;
   onCancel: () => void;
 }
 
-function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCancel }: StepUpdateFormProps) {
+function StepUpdateForm({ stepName, boxId, userId, ticketCode, currentStepData, onSuccess, onCancel }: StepUpdateFormProps) {
   const splitConfig = SPLIT_STEP_CONFIG[stepName] ?? null;
   const isQcStep = stepName === "qc";
   const isRepackingStep = stepName === "repacking";
   const isReturningStep = stepName === "returning";
 
-  const [status, setStatus] = useState("in_progress");
-  const [notes, setNotes] = useState("");
-  const [itemCount, setItemCount] = useState("");
-  const [itemCountSecondary, setItemCountSecondary] = useState("");
+  const [status, setStatus] = useState(currentStepData?.status ?? "in_progress");
+  const [notes, setNotes] = useState(currentStepData?.notes ?? "");
+  const [itemCount, setItemCount] = useState(currentStepData?.itemCount != null ? String(currentStepData.itemCount) : "");
+  const [itemCountSecondary, setItemCountSecondary] = useState(currentStepData?.itemCountSecondary != null ? String(currentStepData.itemCountSecondary) : "");
   const [itemCountError, setItemCountError] = useState("");
   const [itemCountSecondaryError, setItemCountSecondaryError] = useState("");
   // QC
-  const [copyForClient, setCopyForClient] = useState("");
-  const [storagePrepared, setStoragePrepared] = useState("");
+  const [copyForClient, setCopyForClient] = useState(currentStepData?.copyForClient ?? "");
+  const [storagePrepared, setStoragePrepared] = useState(currentStepData?.storagePrepared ?? "");
   const [copyForClientError, setCopyForClientError] = useState("");
   const [storagePreparedError, setStoragePreparedError] = useState("");
   // Repacking
-  const [hddReady, setHddReady] = useState("");
-  const [documentHandover, setDocumentHandover] = useState("");
+  const [hddReady, setHddReady] = useState(currentStepData?.hddReady ?? "");
+  const [documentHandover, setDocumentHandover] = useState(currentStepData?.documentHandover ?? "");
   const [hddReadyError, setHddReadyError] = useState("");
   const [documentHandoverError, setDocumentHandoverError] = useState("");
   // Returning
-  const [clientCopyReceived, setClientCopyReceived] = useState("");
-  const [hddReceivedByClient, setHddReceivedByClient] = useState("");
-  const [handoverDocumentSigned, setHandoverDocumentSigned] = useState("");
-  const [unreturnedMaterials, setUnreturnedMaterials] = useState("");
+  const [clientCopyReceived, setClientCopyReceived] = useState(currentStepData?.clientCopyReceived ?? "");
+  const [hddReceivedByClient, setHddReceivedByClient] = useState(currentStepData?.hddReceivedByClient ?? "");
+  const [handoverDocumentSigned, setHandoverDocumentSigned] = useState(currentStepData?.handoverDocumentSigned ?? "");
+  const [unreturnedMaterials, setUnreturnedMaterials] = useState(currentStepData?.unreturnedMaterials ?? "");
   const [clientCopyReceivedError, setClientCopyReceivedError] = useState("");
   const [hddReceivedByClientError, setHddReceivedByClientError] = useState("");
   const [handoverDocumentSignedError, setHandoverDocumentSignedError] = useState("");
@@ -183,6 +199,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
                 <SelectItem value="ready">Ready</SelectItem>
                 <SelectItem value="later">Later</SelectItem>
                 <SelectItem value="not_yet">Not Yet</SelectItem>
+                <SelectItem value="no">Not Required</SelectItem>
               </SelectContent>
             </Select>
             {copyForClientError && <p className="text-xs text-destructive mt-1">{copyForClientError}</p>}
@@ -198,6 +215,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
               <SelectContent>
                 <SelectItem value="ptad">PTAD</SelectItem>
                 <SelectItem value="client">Client</SelectItem>
+                <SelectItem value="no">Not Required</SelectItem>
               </SelectContent>
             </Select>
             {storagePreparedError && <p className="text-xs text-destructive mt-1">{storagePreparedError}</p>}
@@ -220,6 +238,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
                 <SelectItem value="yes">Yes</SelectItem>
                 <SelectItem value="later">Later</SelectItem>
                 <SelectItem value="not_yet">Not Yet</SelectItem>
+                <SelectItem value="no">Not Required</SelectItem>
               </SelectContent>
             </Select>
             {hddReadyError && <p className="text-xs text-destructive mt-1">{hddReadyError}</p>}
@@ -235,6 +254,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
               <SelectContent>
                 <SelectItem value="yes">Yes</SelectItem>
                 <SelectItem value="not_yet">Not Yet</SelectItem>
+                <SelectItem value="no">Not Required</SelectItem>
               </SelectContent>
             </Select>
             {documentHandoverError && <p className="text-xs text-destructive mt-1">{documentHandoverError}</p>}
@@ -246,11 +266,11 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
       {isReturningStep && (
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Client copy received?", val: clientCopyReceived, set: setClientCopyReceived, err: clientCopyReceivedError, setErr: setClientCopyReceivedError },
-            { label: "HDD received by client?", val: hddReceivedByClient, set: setHddReceivedByClient, err: hddReceivedByClientError, setErr: setHddReceivedByClientError },
-            { label: "Handover doc signed?", val: handoverDocumentSigned, set: setHandoverDocumentSigned, err: handoverDocumentSignedError, setErr: setHandoverDocumentSignedError },
-            { label: "Unreturned materials?", val: unreturnedMaterials, set: setUnreturnedMaterials, err: unreturnedMaterialsError, setErr: setUnreturnedMaterialsError },
-          ].map(({ label, val, set, err, setErr }) => (
+            { label: "Client copy received?", val: clientCopyReceived, set: setClientCopyReceived, err: clientCopyReceivedError, setErr: setClientCopyReceivedError, showNotRequired: true },
+            { label: "HDD received by client?", val: hddReceivedByClient, set: setHddReceivedByClient, err: hddReceivedByClientError, setErr: setHddReceivedByClientError, showNotRequired: true },
+            { label: "Handover doc signed?", val: handoverDocumentSigned, set: setHandoverDocumentSigned, err: handoverDocumentSignedError, setErr: setHandoverDocumentSignedError, showNotRequired: true },
+            { label: "Unreturned materials?", val: unreturnedMaterials, set: setUnreturnedMaterials, err: unreturnedMaterialsError, setErr: setUnreturnedMaterialsError, showNotRequired: false },
+          ].map(({ label, val, set, err, setErr, showNotRequired }) => (
             <div key={label}>
               <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                 {label}<span className="text-destructive">*</span>
@@ -262,6 +282,7 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
                 <SelectContent>
                   <SelectItem value="yes">Yes</SelectItem>
                   <SelectItem value="no">No</SelectItem>
+                  {showNotRequired && <SelectItem value="not_required">Not Required</SelectItem>}
                 </SelectContent>
               </Select>
               {err && <p className="text-xs text-destructive mt-1">{err}</p>}
@@ -299,13 +320,19 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
             }
             if (isQcStep) {
               if (!copyForClient) { setCopyForClientError("Required"); return; }
+              if (status === "completed" && copyForClient === "not_yet") {
+                setCopyForClientError("Must not be 'Not Yet' to mark as Completed"); return;
+              }
               if (!storagePrepared) { setStoragePreparedError("Required"); return; }
             }
             if (isRepackingStep) {
               if (!hddReady) { setHddReadyError("Required"); return; }
+              if (status === "completed" && hddReady === "not_yet") {
+                setHddReadyError("Must be 'Yes', 'Later', or 'Not Required' to mark as Completed"); return;
+              }
               if (!documentHandover) { setDocumentHandoverError("Required"); return; }
               if (status === "completed" && documentHandover === "not_yet") {
-                setDocumentHandoverError("Must not be 'Not Yet' to mark as Completed"); return;
+                setDocumentHandoverError("Must be 'Yes' or 'Not Required' to mark as Completed"); return;
               }
             }
             if (isReturningStep) {
@@ -314,9 +341,9 @@ function StepUpdateForm({ stepName, boxId, userId, ticketCode, onSuccess, onCanc
               if (!handoverDocumentSigned) { setHandoverDocumentSignedError("Required"); return; }
               if (!unreturnedMaterials) { setUnreturnedMaterialsError("Required"); return; }
               if (status === "completed") {
-                if (clientCopyReceived !== "yes") { setClientCopyReceivedError("Must be 'Yes' to complete"); return; }
-                if (hddReceivedByClient !== "yes") { setHddReceivedByClientError("Must be 'Yes' to complete"); return; }
-                if (handoverDocumentSigned !== "yes") { setHandoverDocumentSignedError("Must be 'Yes' to complete"); return; }
+                if (clientCopyReceived !== "yes" && clientCopyReceived !== "not_required") { setClientCopyReceivedError("Must be 'Yes' or 'Not Required' to complete"); return; }
+                if (hddReceivedByClient !== "yes" && hddReceivedByClient !== "not_required") { setHddReceivedByClientError("Must be 'Yes' or 'Not Required' to complete"); return; }
+                if (handoverDocumentSigned !== "yes" && handoverDocumentSigned !== "not_required") { setHandoverDocumentSignedError("Must be 'Yes' or 'Not Required' to complete"); return; }
                 if (unreturnedMaterials !== "no") { setUnreturnedMaterialsError("Must be 'No' to complete"); return; }
               }
             }
@@ -560,21 +587,19 @@ export default function ScanPage() {
           </p>
           <div className="space-y-2">
             {workflowSteps.map((step) => {
-              let sequenceOk: boolean;
-              if (step.status === "completed") {
-                sequenceOk = false;
-              } else if (step.stepOrder <= 4) {
-                // Steps 1–4 are parallel — always unlocked
-                sequenceOk = true;
+              // Check if prerequisite steps are done (independent of this step's own status)
+              let prerequisitesMet: boolean;
+              if (step.stepOrder <= 4) {
+                prerequisitesMet = true;
               } else if (step.stepOrder === 5) {
-                // Repacking: all 4 processing steps must be done
                 const firstFour = workflowSteps.filter((s) => s.stepOrder <= 4);
-                sequenceOk = firstFour.every((s) => s.status === "completed" || s.status === "skipped");
+                prerequisitesMet = firstFour.every((s) => s.status === "completed" || s.status === "skipped");
               } else {
-                // Returning: repacking must be done
                 const repacking = workflowSteps.find((s) => s.stepOrder === 5);
-                sequenceOk = !!repacking && (repacking.status === "completed" || repacking.status === "skipped");
+                prerequisitesMet = !!repacking && (repacking.status === "completed" || repacking.status === "skipped");
               }
+              // Completed steps can always be re-edited (allow corrections); pending steps need prerequisites met
+              const sequenceOk = step.status === "completed" || step.status === "in_progress" || prerequisitesMet;
               const roleOk = isAdmin || (!!identity && identitySteps.includes(step.stepName));
               const canUpdate = sequenceOk && roleOk;
               const isUpdating = activeUpdateStep === step.stepName;
@@ -652,31 +677,31 @@ export default function ScanPage() {
                         })()}
                         {/* QC fields */}
                         {step.stepName === "qc" && (() => {
-                          const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : null;
-                          const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : null;
+                          const copyLabel = step.copyForClient === "ready" ? "Ready" : step.copyForClient === "later" ? "Later" : step.copyForClient === "not_yet" ? "Not Yet" : step.copyForClient === "no" ? "Not Required" : null;
+                          const storageLabel = step.storagePrepared === "ptad" ? "PTAD" : step.storagePrepared === "client" ? "Client" : step.storagePrepared === "no" ? "Not Required" : null;
                           return (<>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground w-20 shrink-0">Copy for client</span>
-                              {copyLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                              {copyLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.copyForClient === "ready" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.copyForClient === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{copyLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground w-20 shrink-0">Storage</span>
-                              {storageLabel ? <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">{storageLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                              {storageLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.storagePrepared === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"}`}>{storageLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
                             </div>
                           </>);
                         })()}
                         {/* Repacking fields */}
                         {step.stepName === "repacking" && (() => {
-                          const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : null;
-                          const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : null;
+                          const hddLabel = step.hddReady === "yes" ? "Yes" : step.hddReady === "later" ? "Later" : step.hddReady === "not_yet" ? "Not Yet" : step.hddReady === "no" ? "Not Required" : null;
+                          const handoverLabel = step.documentHandover === "yes" ? "Yes" : step.documentHandover === "not_yet" ? "Not Yet" : step.documentHandover === "no" ? "Not Required" : null;
                           return (<>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground w-20 shrink-0">HDD ready</span>
-                              {hddLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                              {hddLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.hddReady === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.hddReady === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"}`}>{hddLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground w-20 shrink-0">Doc handover</span>
-                              {handoverLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
+                              {handoverLabel ? <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${step.documentHandover === "yes" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : step.documentHandover === "no" ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{handoverLabel}</span> : <span className="text-xs text-muted-foreground/40">—</span>}
                             </div>
                           </>);
                         })()}
@@ -684,6 +709,7 @@ export default function ScanPage() {
                         {step.stepName === "returning" && (() => {
                           const yesNo = (val: string | null | undefined, invertGood?: boolean) => {
                             if (!val) return <span className="text-xs text-muted-foreground/40">—</span>;
+                            if (val === "not_required") return <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">Not Required</span>;
                             const isGood = invertGood ? val === "no" : val === "yes";
                             return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${isGood ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"}`}>{val === "yes" ? "Yes" : "No"}</span>;
                           };
@@ -703,8 +729,8 @@ export default function ScanPage() {
                   </div>
 
                   <div className="mt-2 ml-[31px]">
-                    {/* Sequence blocked */}
-                    {!sequenceOk && step.status !== "completed" && (
+                    {/* Sequence blocked — only show for pending steps whose prerequisites aren't met */}
+                    {!prerequisitesMet && step.status === "pending" && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <AlertTriangle size={11} />
                         {step.stepOrder === 5
@@ -743,7 +769,7 @@ export default function ScanPage() {
                         data-testid={`button-update-${step.stepName}`}
                       >
                         <ChevronDown size={13} className="mr-1.5" />
-                        Update This Step
+                        {step.status === "completed" ? "Edit This Step" : "Update This Step"}
                       </Button>
                     )}
 
@@ -754,6 +780,7 @@ export default function ScanPage() {
                         boxId={box.id}
                         userId={identity?.id ?? null}
                         ticketCode={ticketCode}
+                        currentStepData={step}
                         onSuccess={(sn) => {
                           setActiveUpdateStep(null);
                           setSuccessStep(sn);
